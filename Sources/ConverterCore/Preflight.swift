@@ -139,7 +139,8 @@ public enum Preflight {
         case .pandoc:
             return tools.locate(["pandoc"]) == nil ? Finding(severity: .blocking, message: "Pandoc is not installed. Install it with: brew install pandoc") : nil
         case .archiver:
-            let needsSevenZip = target.id == "zip" || target.id == "7z" || file.formatID == "zip" || file.formatID == "7z"
+            let needsSevenZip = target.id == "zip" || target.id == "7z"
+                || ["zip", "7z", "rar"].contains(file.formatID)
             return needsSevenZip && tools.locate(["7z", "7zz"]) == nil ? Finding(severity: .blocking, message: "7-Zip is not installed. Install it with: brew install p7zip") : nil
         case .ollama:
             return tools.locate(["ollama"]) == nil ? Finding(severity: .blocking, message: "Ollama is not installed. Install it with: brew install ollama") : nil

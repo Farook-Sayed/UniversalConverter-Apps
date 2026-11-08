@@ -56,6 +56,14 @@ final class StandardFormatsTests: XCTestCase {
         XCTAssertNil(route("mp3", routes), "MP3 needs FFmpeg")
     }
 
+    func testRARNeedsSevenZipAndReadsToZip() {
+        // RAR is only readable with 7-Zip. Without it, nothing is offered.
+        XCTAssertTrue(FormatCatalog.targets(for: detected("rar", .archive, ext: "rar"), available: builtinOnly).isEmpty)
+        let routes = FormatCatalog.targets(for: detected("rar", .archive, ext: "rar"))
+        XCTAssertEqual(route("zip", routes)?.engine, .archiver)
+        XCTAssertNil(route("rar", routes), "RAR cannot be written")
+    }
+
     func testVideoNeedsFFmpeg() {
         XCTAssertTrue(FormatCatalog.targets(for: detected("mp4", .video, ext: "mp4"), available: builtinOnly).isEmpty)
     }

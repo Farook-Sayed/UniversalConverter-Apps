@@ -10,7 +10,7 @@ extension ToolLocator {
         case .libreoffice: return locate(["soffice"]) != nil
         case .pandoc: return locate(["pandoc"]) != nil
         case .ollama:
-            // Code translation needs both the server program and the default model.
+            // Code translation needs both the server program and the chosen model.
             return locate(["ollama"]) != nil && FileManager.default.fileExists(atPath: ToolFeature.codeModelManifest.path)
         case .archiver: return locate(["7z", "7zz"]) != nil
         case .fonttools: return Converter.fontPython(tools: self) != nil

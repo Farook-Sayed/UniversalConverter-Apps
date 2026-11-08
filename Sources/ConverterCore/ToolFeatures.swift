@@ -44,10 +44,9 @@ public struct ToolFeature: Identifiable, Sendable {
         URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".venvs/converter")
     }
 
-    /// The file Ollama keeps for the default code model. Its presence means the model is installed.
+    /// The file Ollama keeps for the chosen code model. Its presence means that model is installed.
     public static var codeModelManifest: URL {
-        URL(fileURLWithPath: NSHomeDirectory())
-            .appendingPathComponent(".ollama/models/manifests/registry.ollama.ai/library/qwen2.5-coder/7b")
+        CodeModels.manifestURL(for: CodeModels.selected)
     }
 
     public static let all: [ToolFeature] = [
@@ -84,7 +83,7 @@ public struct ToolFeature: Identifiable, Sendable {
                     size: "About 60 MB", formulae: ["assimp"],
                     installed: { $0.locate(["assimp"]) != nil }),
         ToolFeature(id: "sevenzip", title: "7-Zip archives",
-                    detail: "7z archives.",
+                    detail: "7z archives, and RAR archives as input.",
                     size: "About 10 MB", formulae: ["p7zip"],
                     installed: { $0.locate(["7z", "7zz"]) != nil }),
         ToolFeature(id: "fonts", title: "Fonts",
@@ -93,8 +92,8 @@ public struct ToolFeature: Identifiable, Sendable {
                     installed: { _ in FileManager.default.isExecutableFile(
                         atPath: ToolFeature.fontEnvironment.appendingPathComponent("bin/python").path) }),
         ToolFeature(id: "code", title: "Code translation",
-                    detail: "Translates code between languages with a model that runs on this Mac. The model is about 4.7 GB and works best with 16 GB of memory.",
-                    size: "About 5 GB", formulae: ["ollama"], extraSteps: [.codeModel],
+                    detail: "Translates code between languages with a model that runs on this Mac. Choose the model in Settings → Code.",
+                    size: "1 to 9 GB, depending on the model", formulae: ["ollama"], extraSteps: [.codeModel],
                     installed: { $0.locate(["ollama"]) != nil
                         && FileManager.default.fileExists(atPath: ToolFeature.codeModelManifest.path) }),
         ToolFeature(id: "codeChecks", title: "Code checks",
@@ -137,6 +136,15 @@ public enum ToolInstaller {
                 try await run(npm, ["install", "-g", "typescript"], named: "npm", log: &log)
             }
         }
+        return log
+    }
+
+    /// Downloads one code model through Ollama. The model list in Settings uses this.
+    public static func pullModel(_ name: String, tools: ToolLocator,
+                                 progress: @escaping @Sendable (String) -> Void) async throws -> [String] {
+        var log: [String] = []
+        progress("Downloading \(name). This can take a while…")
+        try await pullCodeModel(name, tools: tools, log: &log)
         return log
     }
 

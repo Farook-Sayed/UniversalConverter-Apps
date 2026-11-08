@@ -233,7 +233,7 @@ public enum FormatCatalog {
         case .code: candidates = codeLanguages.map(\.id)
         case .archive:
             // Only the formats the app can unpack. A plain .gz or .rar is detected but not converted.
-            let readable = ["zip", "7z", "targz", "tar"]
+            let readable = ["zip", "7z", "rar", "targz", "tar"]
             candidates = readable.contains(formatID) ? archiveTargets : []
         case .subtitle: candidates = subtitleTargets
         case .font:

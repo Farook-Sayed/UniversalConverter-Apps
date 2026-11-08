@@ -88,7 +88,7 @@ Some conversions need two or three tools in a row. For example, Markdown to PDF 
 | ZIP, 7z, tar.gz, tar | The other archive formats |
 | Code (Python, Java, C, C++, Rust, JavaScript, TypeScript, Ruby, Go, C#) | Any other language, translated by the local model |
 
-**Not supported yet:** PDF as input, RAR, Markdown to PDF, and plain `.gz` files.
+**Not supported yet:** PDF as input, Markdown to PDF, and plain `.gz` files.
 
 ## 6. The code checks
 
@@ -112,7 +112,7 @@ A passed check means the code parses and compiles. It does not mean the code doe
 
 Java class names come from the file name. A name with dashes or spaces is changed to underscores, so `hello-copy.py` becomes `hello_copy.java`.
 
-Source files over 60 KB are refused, because the model cannot read more than that at once.
+Files up to 8 KB are translated in one go. Larger files are split at their top-level definitions, each part is translated on its own, and the parts are joined. Files over 256 KB are refused. Pick the model in Settings → Code. Larger models are more careful but need more memory, and the list shows how much each one needs.
 
 ## 7. Troubleshooting
 
@@ -124,9 +124,9 @@ Source files over 60 KB are refused, because the model cannot read more than tha
 | "fontTools … not installed" | Run the fontTools commands in section 2. |
 | "Calibre is not installed" | Install it with: brew install --cask calibre |
 | "This font has TrueType outlines…" | The font can be saved as WOFF or WOFF2, but not OTF. |
-| "The model … is not installed" | Run `ollama pull qwen2.5-coder:7b`. |
+| "The model … is not installed" | Download the model in Settings → Code. |
 | "Syntax check … not checked" | Install that language's tool. The result is still saved. |
-| "This file is N KB. The code model accepts up to 60 KB." | Split the file into smaller files. |
+| "This file is N KB. The code limit is 256 KB." | Split the file into smaller files. |
 
 ## 8. Run the tests
 
