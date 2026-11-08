@@ -18,7 +18,7 @@ enum AppSettings {
     static func register() {
         UserDefaults.standard.register(defaults: [
             SettingsKey.outputFolder: "",
-            SettingsKey.ollamaModel: "qwen2.5-coder:7b",
+            SettingsKey.ollamaModel: CodeModels.defaultName,
             SettingsKey.repairCode: true,
             SettingsKey.revealWhenDone: false,
             SettingsKey.notifyWhenDone: true,
@@ -30,10 +30,7 @@ enum AppSettings {
         return path.isEmpty ? nil : URL(fileURLWithPath: path, isDirectory: true)
     }
 
-    static var ollamaModel: String {
-        let model = UserDefaults.standard.string(forKey: SettingsKey.ollamaModel) ?? ""
-        return model.isEmpty ? "qwen2.5-coder:7b" : model
-    }
+    static var ollamaModel: String { CodeModels.selected }
 
     static var repairAttempts: Int {
         UserDefaults.standard.bool(forKey: SettingsKey.repairCode) ? 1 : 0
@@ -70,6 +67,8 @@ final class AppModel {
         var findings: [Finding] = []
         var phase: Phase = .ready
         var log: [String] = []
+        /// What the conversion is doing right now, such as "Translating part 2 of 5".
+        var progress: String?
 
         var selectedTarget: Route? { targets.first { $0.id == selectedTargetID } }
         var isBlocked: Bool { findings.contains { $0.severity == .blocking } }
@@ -88,6 +87,9 @@ final class AppModel {
     private(set) var notice: String?
     /// The result of the last install. Shown above the list until dismissed.
     private(set) var toolNotice: String?
+    /// The code models that are downloaded, and whether Ollama itself is installed.
+    private(set) var installedModels: Set<String> = []
+    private(set) var ollamaInstalled = false
 
     private var tasks: [UUID: Task<Void, Never>] = [:]
     private var waiting: [UUID] = []
@@ -236,7 +238,10 @@ final class AppModel {
         let request = ConversionRequest(input: file, route: target,
                                         outputDirectory: outputDirectory(for: file.url))
         let converter = Converter(ollama: OllamaClient(model: AppSettings.ollamaModel),
-                                  repairAttempts: AppSettings.repairAttempts)
+                                  repairAttempts: AppSettings.repairAttempts,
+                                  progress: { [weak self] text in
+                                      Task { @MainActor in self?.setProgress(id, text) }
+                                  })
 
         tasks[id] = Task { [weak self] in
             do {
@@ -268,10 +273,16 @@ final class AppModel {
         }
     }
 
+    private func setProgress(_ id: UUID, _ text: String) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        items[index].progress = text
+    }
+
     private func finish(_ id: UUID, phase: Phase, log: [String]) {
         tasks[id] = nil
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         items[index].phase = phase
+        items[index].progress = nil
         items[index].log = log
         if case .finished(let url, _) = phase {
             if UserDefaults.standard.bool(forKey: SettingsKey.revealWhenDone) {
@@ -288,6 +299,30 @@ final class AppModel {
         let locator = ToolLocator()
         features = ToolFeature.all.map { FeatureState(feature: $0, installed: $0.isInstalled(locator)) }
         homebrewInstalled = locator.locate(["brew"]) != nil
+        ollamaInstalled = locator.locate(["ollama"]) != nil
+        installedModels = Set(CodeModels.catalog.filter(\.isInstalled).map(\.name))
+    }
+
+    /// Downloads one code model through Ollama. It shares the single install slot with the features.
+    func installModel(_ entry: CodeModel) {
+        guard installingID == nil else { return }
+        installingID = "model:\(entry.name)"
+        installStep = "Starting…"
+        toolNotice = nil
+        Task { [weak self] in
+            do {
+                _ = try await ToolInstaller.pullModel(entry.name, tools: ToolLocator()) { step in
+                    Task { @MainActor in self?.installStep = step }
+                }
+                self?.toolNotice = "\(entry.title) is downloaded. Choose it in Settings → Code to use it."
+            } catch {
+                self?.toolNotice = "\(entry.title) could not be downloaded. \(error.localizedDescription)"
+            }
+            self?.installingID = nil
+            self?.installStep = nil
+            self?.refreshTools()
+            self?.rebuildTargets()
+        }
     }
 
     /// Installs one optional feature with Homebrew. Only one install runs at a time.

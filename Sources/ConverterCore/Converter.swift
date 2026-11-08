@@ -84,19 +84,23 @@ public struct Converter: Sendable {
     public let validator: CodeValidator
     /// How many times the model may repair code that fails the syntax check. Zero turns repair off.
     public let repairAttempts: Int
+    /// Reports what the conversion is doing now, such as "Translating part 2 of 5". Shown in the queue.
+    public let progress: @Sendable (String) -> Void
 
-    /// Source files larger than this are refused by the code branch. Larger inputs would exceed
-    /// what the local model can read at once.
-    public static let maxCodeBytes = 60 * 1024
+    /// Source files larger than this are refused. Files up to this size are split at top-level definitions,
+    /// and each part is translated on its own.
+    public static let maxCodeBytes = 256 * 1024
 
     /// Targets that only keep the sound of a video. These need an audio track in the input.
     public static let audioOnlyTargets: Set<String> = ["mp3", "wav", "flac", "m4a", "ogg"]
 
-    public init(tools: ToolLocator = ToolLocator(), ollama: OllamaClient = OllamaClient(), repairAttempts: Int = 1) {
+    public init(tools: ToolLocator = ToolLocator(), ollama: OllamaClient = OllamaClient(), repairAttempts: Int = 1,
+                progress: @escaping @Sendable (String) -> Void = { _ in }) {
         self.tools = tools
         self.ollama = ollama
         self.validator = CodeValidator(tools: tools)
         self.repairAttempts = repairAttempts
+        self.progress = progress
     }
 
     /// Runs every step of the request's route in order. Each step reads the previous step's output.
@@ -129,6 +133,7 @@ public struct Converter: Sendable {
             if stepCount > 1 {
                 log.append("step \(index + 1) of \(stepCount): \(step.output.label)")
             }
+            progress(stepCount > 1 ? "Step \(index + 1) of \(stepCount)…" : "Converting…")
             let (produced, check) = try await runStep(input: current, target: step.output, stem: stem,
                                                       workDir: stepDir, log: &log)
             if isLast { validation = check }
@@ -339,19 +344,46 @@ public struct Converter: Sendable {
         log.append("source syntax check: \(sourceCheck.summary)")
 
         log.append("ollama generate model=\(ollama.model) \(source.id)->\(destination.id)")
-        var translated = try await generateCode(CodePrompt.make(source: source, target: destination,
+        var translated: String
+        if code.utf8.count <= CodeChunker.wholeFileBytes {
+            translated = try await generateCode(CodePrompt.make(source: source, target: destination,
                                                                 code: code, className: stem))
+        } else {
+            // A long file is cut at its top-level definitions. Each part is translated on its own, then joined.
+            let pieces = CodeChunker.split(code)
+            log.append("long file: translating \(pieces.count) parts, then joining them")
+            var translatedParts: [String] = []
+            for (index, piece) in pieces.enumerated() {
+                try Task.checkCancellation()
+                progress("Translating part \(index + 1) of \(pieces.count)")
+                translatedParts.append(try await generateCode(CodePrompt.part(
+                    source: source, target: destination, code: piece, className: stem,
+                    index: index + 1, count: pieces.count)))
+            }
+            translated = CodeChunker.join(translatedParts)
+            if destination.id == "java" {
+                log.append("Java: the parts are joined into one file. Check the class declaration.")
+            }
+        }
+        progress("Checking the code")
         var check = try await validator.validate(code: translated, language: destination,
                                                  fileName: fileName, workDir: workDir)
 
         // One repair attempt: send the checker's own error messages back to the model.
+        // A joined file too large for one repair request is saved with its errors listed instead.
         if case .failed(_, let messages) = check, repairAttempts > 0 {
-            log.append("syntax check failed, asking the model to repair the code:")
+            log.append("syntax check failed:")
             log.append(contentsOf: messages.map { "  \($0)" })
-            translated = try await generateCode(CodePrompt.repair(target: destination, code: translated,
-                                                                  errors: messages, className: stem))
-            check = try await validator.validate(code: translated, language: destination,
-                                                 fileName: fileName, workDir: workDir)
+            if translated.utf8.count > CodeChunker.repairBytes {
+                log.append("the file is too large for one repair request, so it is saved with the errors listed")
+            } else {
+                log.append("asking the model to repair the code")
+                progress("Repairing the code")
+                translated = try await generateCode(CodePrompt.repair(target: destination, code: translated,
+                                                                      errors: messages, className: stem))
+                check = try await validator.validate(code: translated, language: destination,
+                                                     fileName: fileName, workDir: workDir)
+            }
         }
         log.append("syntax check: \(check.summary)")
 
@@ -491,7 +523,8 @@ public struct Converter: Sendable {
 
         // 7-Zip reads ZIP and 7z. The system tar reads tar and tar.gz.
         switch input.formatID {
-        case "zip", "7z":
+        case "zip", "7z", "rar":
+            // 7-Zip reads RAR too. It cannot write RAR, so RAR is only ever an input.
             try await execute("7-Zip", try requireSevenZip(),
                               ["x", "-y", "-o" + extracted.path, input.url.path], log: &log)
         case "targz", "tar":

@@ -10,7 +10,6 @@ final class ConversionMatrixTests: XCTestCase {
 
     /// Failures that are correct by design. Each one needs the file name and part of the message.
     private let expectedRefusals: [(file: String, message: String)] = [
-        ("code/big_script.py", "60 KB"),
         ("video/silent.mp4", "no sound track"),
         // A TrueType-outline web font cannot be saved as OTF, which has PostScript outlines.
         ("fonts/sample.woff", "TrueType"),

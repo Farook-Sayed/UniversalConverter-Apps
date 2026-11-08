@@ -11,7 +11,7 @@ enum SettingsTab: String {
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @AppStorage(SettingsKey.outputFolder) private var outputFolder = ""
-    @AppStorage(SettingsKey.ollamaModel) private var ollamaModel = "qwen2.5-coder:7b"
+    @AppStorage(SettingsKey.ollamaModel) private var ollamaModel = CodeModels.defaultName
     @AppStorage(SettingsKey.repairCode) private var repairCode = true
     @AppStorage(SettingsKey.revealWhenDone) private var revealWhenDone = false
     @AppStorage(SettingsKey.notifyWhenDone) private var notifyWhenDone = true
@@ -39,6 +39,10 @@ struct SettingsView: View {
             if let name = note.object as? String { tabName = name }
         }
         .onAppear { model.refreshTools() }
+        .onChange(of: ollamaModel) { _, _ in
+            model.refreshTools()
+            model.rebuildTargets()
+        }
     }
 
     private var general: some View {
@@ -70,11 +74,21 @@ struct SettingsView: View {
 
     private var code: some View {
         Form {
-            Section("Model") {
-                TextField("Ollama model", text: $ollamaModel)
-                Text("Code translation uses this model. Install it from the Tools tab, or with: ollama pull \(ollamaModel)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            Section {
+                ForEach(CodeModels.catalog) { entry in
+                    ModelRow(entry: entry, chosen: $ollamaModel)
+                }
+            } header: {
+                Text("Model")
+            } footer: {
+                Text("Code translation uses the chosen model. Models run on this Mac, so nothing is sent elsewhere. Larger models are more careful and slower.")
+            }
+            Section {
+                TextField("Model name", text: $ollamaModel)
+            } header: {
+                Text("Another model")
+            } footer: {
+                Text("Type the name of any model Ollama has, such as llama3.2:3b. Download it first, with: ollama pull llama3.2:3b")
             }
             Section("Checks") {
                 Toggle("Ask the model to fix code that fails the syntax check", isOn: $repairCode)
@@ -174,5 +188,57 @@ struct FeatureRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// One code model: what it does, its size and memory, and a Download, Use or In use control.
+struct ModelRow: View {
+    @Environment(AppModel.self) private var model
+    let entry: CodeModel
+    @Binding var chosen: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(entry.title)
+                    .font(.body.weight(.medium))
+                Text(entry.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    Text(entry.download)
+                    Text("Needs about \(entry.memoryGB) GB of memory")
+                    if !entry.fitsThisMac {
+                        Label("This Mac has \(CodeModels.physicalMemoryGB) GB", systemImage: "exclamationmark.triangle")
+                            .labelStyle(.titleAndIcon)
+                            .foregroundStyle(.orange)
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            }
+            Spacer(minLength: 12)
+            trailing
+        }
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder private var trailing: some View {
+        if model.installingID == "model:\(entry.name)" {
+            ProgressView()
+                .controlSize(.small)
+                .help(model.installStep ?? "Downloading…")
+        } else if chosen == entry.name {
+            Label("In use", systemImage: "checkmark.circle.fill")
+                .labelStyle(.titleAndIcon)
+                .foregroundStyle(.green)
+                .font(.callout)
+        } else if model.installedModels.contains(entry.name) {
+            Button("Use") { chosen = entry.name }
+        } else {
+            Button("Download") { model.installModel(entry) }
+                .disabled(model.isInstalling || !model.ollamaInstalled)
+        }
     }
 }

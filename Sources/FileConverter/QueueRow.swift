@@ -79,9 +79,9 @@ struct QueueRow: View {
             HStack(spacing: 6) {
                 ProgressView()
                     .controlSize(.small)
-                Text(item.selectedTarget?.engine == .ollama
+                Text(item.progress ?? (item.selectedTarget?.engine == .ollama
                      ? "Translating with the local model…"
-                     : "Converting…")
+                     : "Converting…"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

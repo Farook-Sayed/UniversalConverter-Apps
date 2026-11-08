@@ -182,10 +182,10 @@ class Program
 }
 CS
 
-# A Python file above the 60 KB limit. The code branch should refuse it with a clear message.
+# A Python file of about 20 KB. It is above the 8 KB whole-file limit, so the code branch splits it into parts.
 {
-    echo "# Generated file larger than the 60 KB code limit"
-    for i in $(seq 1 2000); do
+    echo "# Generated file of about 20 KB, translated in parts"
+    for i in $(seq 1 450); do
         printf 'def func_%d(x):\n    return x * %d\n\n' "$i" "$i"
     done
 } > "$OUT/code/big_script.py"

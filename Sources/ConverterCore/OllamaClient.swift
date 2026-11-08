@@ -6,7 +6,7 @@ public struct OllamaClient: Sendable {
     public let model: String
 
     public init(baseURL: URL = URL(string: "http://localhost:11434")!,
-                model: String = "qwen2.5-coder:7b") {
+                model: String = CodeModels.defaultName) {
         self.baseURL = baseURL
         self.model = model
     }
@@ -43,7 +43,11 @@ public struct OllamaClient: Sendable {
 
     /// Runs one non-streaming generation and returns the full text.
     public func generate(_ prompt: String) async throws -> String {
-        struct Options: Encodable { let temperature: Double }
+        // num_ctx is the context window. The default is too small for a translation prompt plus a part of code.
+        struct Options: Encodable {
+            let temperature: Double
+            let num_ctx: Int
+        }
         struct Body: Encodable {
             let model: String
             let prompt: String
@@ -57,7 +61,7 @@ public struct OllamaClient: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 600
         request.httpBody = try JSONEncoder().encode(
-            Body(model: model, prompt: prompt, stream: false, options: Options(temperature: 0.1))
+            Body(model: model, prompt: prompt, stream: false, options: Options(temperature: 0.1, num_ctx: 8192))
         )
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -94,6 +98,24 @@ public enum CodePrompt {
 }
 
 extension CodePrompt {
+    /// The instruction for one part of a longer file. The model translates only that part.
+    public static func part(source: CodeLanguage, target: CodeLanguage, code: String, className: String,
+                            index: Int, count: Int) -> String {
+        let classRule = target.id == "java"
+            ? "If this part declares the public class, it must be named \(className)."
+            : ""
+        return """
+        You are a source-code translator. This is part \(index) of \(count) of a longer \(source.label) program. \
+        Translate ONLY the code in this part into \(target.label). Keep the same behaviour and the same output. \
+        Keep every name exactly as in the source, because other parts use the same names. Include the imports \
+        this part needs. Do not add code that is not in this part. \(classRule)
+        Return ONLY the \(target.label) source code. No explanations and no markdown code fences.
+
+        \(source.label) source (part \(index) of \(count)):
+        \(code)
+        """
+    }
+
     /// Asks the model to fix code that failed the syntax check, using the checker's own messages.
     public static func repair(target: CodeLanguage, code: String, errors: [String], className: String) -> String {
         let classRule = target.id == "java" ? "The public class must be named \(className)." : ""

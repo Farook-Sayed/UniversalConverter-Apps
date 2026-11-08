@@ -212,4 +212,24 @@ final class ConversionIntegrationTests: XCTestCase {
         XCTAssertTrue(code.contains("class Hello"), "the Java class should be named after the file")
         XCTAssertFalse(code.contains("```"), "markdown fences must be stripped")
     }
+
+    /// A file over the 8 KB whole-file limit is split into parts, translated one by one, and joined.
+    func testLongPythonFileIsTranslatedInParts() async throws {
+        guard await OllamaClient().isRunning() else {
+            throw XCTSkip("Ollama is not running")
+        }
+        let py = workDir.appendingPathComponent("Long.py")
+        let source = (1...200).map { "def compute_\($0)(x):\n    return x * \($0) + \($0)\n" }
+            .joined(separator: "\n")
+        try source.write(to: py, atomically: true, encoding: .utf8)
+        XCTAssertGreaterThan(source.utf8.count, CodeChunker.wholeFileBytes)
+
+        let result = try await convert(py, to: "javascript")
+        XCTAssertTrue(result.log.contains { $0.hasPrefix("long file: translating") },
+                      "a file over the whole-file limit should be split")
+        XCTAssertNotNil(result.validation, "code translations should always report a syntax check")
+        let code = try String(contentsOf: result.outputURL, encoding: .utf8)
+        XCTAssertTrue(code.contains("compute_200"), "the last definition should survive the join")
+        XCTAssertFalse(code.contains("```"), "markdown fences must be stripped")
+    }
 }
