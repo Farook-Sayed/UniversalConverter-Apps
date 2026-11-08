@@ -12,14 +12,8 @@ struct ContentView: View {
     var body: some View {
         content
             .frame(minWidth: 640, minHeight: 440)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if !model.missingTools.isEmpty {
-                    MissingToolsBanner(missing: model.missingTools)
-                }
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                StatusBar()
-            }
+            .safeAreaInset(edge: .top, spacing: 0) { notices }
+            .safeAreaInset(edge: .bottom, spacing: 0) { StatusBar() }
             .overlay { DropHighlight(isTargeted: isTargeted) }
             .dropDestination(for: URL.self) { urls, _ in
                 model.add(urls)
@@ -52,6 +46,27 @@ struct ContentView: View {
             }
         } else {
             EmptyState()
+        }
+    }
+
+    /// Install results and file problems, above the list.
+    @ViewBuilder
+    private var notices: some View {
+        if model.toolNotice != nil || model.notice != nil {
+            VStack(spacing: 6) {
+                if let message = model.toolNotice {
+                    NoticeBanner(message: message, tint: .green, symbol: "checkmark.circle.fill") {
+                        model.dismissToolNotice()
+                    }
+                }
+                if let message = model.notice {
+                    NoticeBanner(message: message, tint: .orange, symbol: "exclamationmark.circle.fill") {
+                        model.dismissNotice()
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
         }
     }
 
@@ -122,7 +137,7 @@ struct ContentView: View {
 
 // MARK: - Empty state
 
-/// What the window shows with no files: a short invitation, the way Apple's own apps do it.
+/// What the window shows with no files. It says what works straight away.
 struct EmptyState: View {
     @Environment(AppModel.self) private var model
 
@@ -139,7 +154,7 @@ struct EmptyState: View {
         } description: {
             VStack(spacing: 10) {
                 Text("The format comes from what is inside the file, so a wrong file name does not matter.")
-                Text("Works with documents, images, video, audio, e-books, fonts, archives, 3D models and code.")
+                Text("Images, Word documents, text, audio and archives work right away. Add more formats in Settings.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
@@ -180,24 +195,37 @@ struct DropHighlight: View {
 
 // MARK: - Status bar
 
-/// A thin bar at the bottom: how many files, what is running, and where results are saved.
+/// One line at the bottom: how many files, what is installing, and an offer to add formats.
 struct StatusBar: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Text(summary)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .contentTransition(.numericText())
             Spacer()
-            SettingsLink {
-                Label(outputText, systemImage: "folder")
+            if model.isInstalling {
+                ProgressView()
+                    .controlSize(.small)
+                Text(model.installStep ?? "Installing…")
                     .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            } else if !model.missingFeatures.isEmpty {
+                Button {
+                    UserDefaults.standard.set(SettingsTab.tools.rawValue, forKey: SettingsKey.settingsTab)
+                    openSettings()
+                } label: {
+                    Label("Add formats…", systemImage: "plus.circle")
+                }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .foregroundStyle(Color.accentColor)
+                .help("Install optional tools for more formats")
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Change where results are saved")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 7)
@@ -209,35 +237,41 @@ struct StatusBar: View {
         let total = model.items.count
         guard total > 0 else { return "No files" }
         let running = model.convertingCount
-        return running > 0 ? "\(running) of \(total) converting" : (total == 1 ? "1 file" : "\(total) files")
-    }
-
-    private var outputText: String {
-        AppSettings.outputFolder.map { "Saved in \($0.lastPathComponent)" } ?? "Saved next to the originals"
+        if running > 0 { return "\(running) of \(total) converting" }
+        return total == 1 ? "1 file" : "\(total) files"
     }
 }
 
-// MARK: - Missing tools
+// MARK: - Notices
 
-/// Lists the tools that are missing, with a link to the Tools tab in Settings.
-struct MissingToolsBanner: View {
-    let missing: [ToolStatus]
+/// A message above the list, with a button to dismiss it.
+struct NoticeBanner: View {
+    let message: String
+    let tint: Color
+    let symbol: String
+    let dismiss: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: symbol)
+                .foregroundStyle(tint)
                 .accessibilityHidden(true)
-            Text("Not installed: \(missing.map(\.name).joined(separator: ", ")). Conversions that need them are blocked.")
+            Text(message)
                 .font(.callout)
-            Spacer()
-            SettingsLink { Text("Open Tools…") }
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("Dismiss")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .glassSurface(cornerRadius: 12, tint: .orange)
         .padding(.horizontal, 12)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassSurface(cornerRadius: 10, tint: tint)
     }
 }

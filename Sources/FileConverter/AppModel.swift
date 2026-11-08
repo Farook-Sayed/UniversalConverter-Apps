@@ -11,6 +11,7 @@ enum SettingsKey {
     static let repairCode = "repairCode"
     static let revealWhenDone = "revealWhenDone"
     static let notifyWhenDone = "notifyWhenDone"
+    static let settingsTab = "settingsTab"
 }
 
 enum AppSettings {
@@ -39,6 +40,13 @@ enum AppSettings {
     }
 }
 
+/// One optional tool group and whether it is installed.
+struct FeatureState: Identifiable {
+    let feature: ToolFeature
+    let installed: Bool
+    var id: String { feature.id }
+}
+
 /// The files in the window, and the conversions running on them.
 @MainActor
 @Observable
@@ -46,7 +54,7 @@ final class AppModel {
 
     enum Phase: Equatable {
         case ready
-        /// Waiting for a free slot. At most two conversions run at once.
+        /// Waiting for a free slot. At most `maxConcurrent` conversions run at once.
         case queued
         case converting
         case finished(URL, ValidationResult?)
@@ -66,17 +74,24 @@ final class AppModel {
         var selectedTarget: Route? { targets.first { $0.id == selectedTargetID } }
         var isBlocked: Bool { findings.contains { $0.severity == .blocking } }
         var isBusy: Bool { phase == .converting || phase == .queued }
-        /// Formats reached in one step, and formats reached through other formats.
         var directTargets: [Route] { targets.filter { !$0.isMultiStep } }
         var chainedTargets: [Route] { targets.filter(\.isMultiStep) }
     }
 
     private(set) var items: [Item] = []
-    private(set) var tools: [ToolStatus] = []
-    /// A short message about files that could not be added, shown above the list.
+    private(set) var features: [FeatureState] = []
+    private(set) var homebrewInstalled = false
+    /// The feature being installed right now, and the step it is on.
+    private(set) var installingID: String?
+    private(set) var installStep: String?
+    /// A short message about files that could not be added. Shown above the list until dismissed.
     private(set) var notice: String?
+    /// The result of the last install. Shown above the list until dismissed.
+    private(set) var toolNotice: String?
 
     private var tasks: [UUID: Task<Void, Never>] = [:]
+    private var waiting: [UUID] = []
+    static let maxConcurrent = 2
 
     init() {
         refreshTools()
@@ -84,11 +99,20 @@ final class AppModel {
 
     var hasItems: Bool { !items.isEmpty }
     var anyBusy: Bool { items.contains { $0.isBusy } }
-    var missingTools: [ToolStatus] { tools.filter { $0.path == nil } }
+    var convertingCount: Int { items.filter(\.isBusy).count }
+    var missingFeatures: [FeatureState] { features.filter { !$0.installed } }
+    var isInstalling: Bool { installingID != nil }
+    private var runningCount: Int { items.filter { $0.phase == .converting }.count }
 
-    // MARK: Adding and removing files
+    /// Whether a conversion tool is installed. The menus offer only conversions that can run now.
+    private var usable: (Engine) -> Bool {
+        let locator = ToolLocator()
+        return { locator.isAvailable($0) }
+    }
 
-    /// Adds files to the queue. Files that cannot be read are reported in `notice`.
+    // MARK: Files
+
+    /// Adds files to the queue. Folders and unreadable files are reported in `notice`.
     func add(_ urls: [URL]) {
         var problems: [String] = []
         var folders: [String] = []
@@ -100,12 +124,8 @@ final class AppModel {
             }
             do {
                 let detected = try FileDetector().detect(url: url)
-                let targets = FormatCatalog.targets(for: detected)
-                var item = Item(file: detected, targets: targets, selectedTargetID: targets.first?.id)
-                if targets.isEmpty {
-                    item.phase = .failed("No conversions are available for this file yet.")
-                }
-                items.append(item)
+                let targets = FormatCatalog.targets(for: detected, available: usable)
+                items.append(Item(file: detected, targets: targets, selectedTargetID: targets.first?.id))
             } catch {
                 problems.append(url.lastPathComponent)
             }
@@ -127,20 +147,14 @@ final class AppModel {
         items.removeAll { ids.contains($0.id) }
     }
 
-    var convertingCount: Int { items.filter(\.isBusy).count }
-
     func remove(_ id: UUID) {
-        tasks[id]?.cancel()
-        waiting.removeAll { $0 == id }
-        items.removeAll { $0.id == id }
+        remove([id])
     }
 
-    /// Removes files that are finished, failed or cancelled. Files still converting stay.
+    /// Removes files that are finished, failed or cancelled. Files still waiting or converting stay.
     func clearFinished() {
         items.removeAll { !$0.isBusy && $0.phase != .ready }
     }
-
-    // MARK: Choosing a format
 
     func select(_ targetID: String?, for id: UUID) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
@@ -154,30 +168,45 @@ final class AppModel {
         AppSettings.outputFolder ?? url.deletingLastPathComponent()
     }
 
-    /// Recalculates the warnings for every file that has a format chosen.
+    /// Recalculates the notes for every file. Called when files are added, formats change, or tools change.
     func refreshFindings() {
         let python = Converter.fontPython(tools: ToolLocator())
+        let locator = ToolLocator()
         for index in items.indices {
-            guard let target = items[index].selectedTarget else {
-                items[index].findings = []
-                continue
+            let file = items[index].file
+            var findings: [Finding] = []
+            if let target = items[index].selectedTarget {
+                findings = Preflight.findings(for: file, target: target,
+                                              outputFolder: outputDirectory(for: file.url),
+                                              tools: locator, fontPython: python)
             }
-            items[index].findings = Preflight.findings(
-                for: items[index].file, target: target,
-                outputFolder: outputDirectory(for: items[index].file.url),
-                tools: ToolLocator(), fontPython: python)
+            // Formats that would appear if the optional tools were installed.
+            let everything = FormatCatalog.targets(for: file).count
+            let hidden = everything - items[index].targets.count
+            if everything == 0 {
+                findings.append(Finding(severity: .info, message: "Universal Converter cannot convert this kind of file yet."))
+            } else if hidden > 0 {
+                let verb = hidden == 1 ? "needs an optional tool" : "need optional tools"
+                findings.append(Finding(severity: .info,
+                                        message: "\(hidden) more format\(hidden == 1 ? "" : "s") \(verb). Add them in Settings, under Tools."))
+            }
+            items[index].findings = findings
         }
     }
 
+    /// Recalculates the format menus, for example after a tool is installed. A chosen format is kept if it still exists.
+    func rebuildTargets() {
+        for index in items.indices {
+            let targets = FormatCatalog.targets(for: items[index].file, available: usable)
+            items[index].targets = targets
+            if !targets.contains(where: { $0.id == items[index].selectedTargetID }) {
+                items[index].selectedTargetID = targets.first?.id
+            }
+        }
+        refreshFindings()
+    }
+
     // MARK: Converting
-
-    /// At most this many conversions run at once. More would slow each other down and use a lot of memory.
-    static let maxConcurrent = 2
-
-    /// Files waiting for a free slot, in the order they were queued.
-    private var waiting: [UUID] = []
-
-    private var runningCount: Int { items.filter { $0.phase == .converting }.count }
 
     /// Queues a file. It starts at once when fewer than `maxConcurrent` conversions are running.
     func convert(_ id: UUID) {
@@ -223,8 +252,8 @@ final class AppModel {
         }
     }
 
+    /// Converts every file that has a format chosen and is not already done.
     func convertAll() {
-        // Files that are already finished are left alone, so Convert All never makes duplicates.
         for item in items where item.phase == .ready && item.selectedTarget != nil && !item.isBlocked {
             convert(item.id)
         }
@@ -253,30 +282,42 @@ final class AppModel {
         startWaiting()
     }
 
-    /// Fills the window with sample files in several states. Only used by the snapshot tool.
-    func loadDemo(folder: URL) {
-        let names = ["documents/sample.docx", "video/sample.mp4", "images/sample.png", "code/hello.py",
-                     "video/silent.mp4", "audio/sample.mp3", "markup/sample.md"]
-        add(names.map { folder.appendingPathComponent($0) })
-        func choose(_ index: Int, _ id: String) {
-            if items.indices.contains(index) { select(id, for: items[index].id) }
-        }
-        choose(0, "pdf"); choose(1, "gif"); choose(2, "jpg"); choose(3, "java")
-        choose(4, "mp3"); choose(6, "pdf")
-        if items.count > 3 {
-            items[3].phase = .finished(folder.appendingPathComponent("code/hello.py"), .passed(checker: "javac"))
-        }
-        if items.count > 4 {
-            items[4].phase = .failed("silent.mp4 has no sound track, so there is no audio to save as MP3 audio.")
-        }
-        if items.count > 5 { items[5].phase = .converting }
-    }
-
-    // MARK: Helpers
+    // MARK: Tools
 
     func refreshTools() {
-        tools = ToolLocator().statusOfAllTools()
+        let locator = ToolLocator()
+        features = ToolFeature.all.map { FeatureState(feature: $0, installed: $0.isInstalled(locator)) }
+        homebrewInstalled = locator.locate(["brew"]) != nil
     }
+
+    /// Installs one optional feature with Homebrew. Only one install runs at a time.
+    func install(_ state: FeatureState) {
+        guard installingID == nil else { return }
+        installingID = state.id
+        installStep = "Starting…"
+        toolNotice = nil
+        let feature = state.feature
+        let codeModel = AppSettings.ollamaModel
+        Task { [weak self] in
+            do {
+                _ = try await ToolInstaller.install(feature, tools: ToolLocator(), codeModel: codeModel) { step in
+                    Task { @MainActor in self?.installStep = step }
+                }
+                self?.toolNotice = "\(feature.title) is ready. Its formats now appear in the menus."
+            } catch {
+                self?.toolNotice = "\(feature.title) could not be installed. \(error.localizedDescription)"
+            }
+            self?.installingID = nil
+            self?.installStep = nil
+            self?.refreshTools()
+            self?.rebuildTargets()
+        }
+    }
+
+    func dismissToolNotice() { toolNotice = nil }
+    func dismissNotice() { notice = nil }
+
+    // MARK: Helpers
 
     func reveal(_ url: URL) {
         NSWorkspace.shared.activateFileViewerSelecting([url])
@@ -305,5 +346,24 @@ final class AppModel {
 
     func requestNotificationPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    /// Fills the window with sample files in several states. Only used by the snapshot tool.
+    func loadDemo(folder: URL) {
+        let names = ["documents/sample.docx", "video/sample.mp4", "images/sample.png", "code/hello.py",
+                     "video/silent.mp4", "audio/sample.mp3", "markup/sample.md"]
+        add(names.map { folder.appendingPathComponent($0) })
+        func choose(_ index: Int, _ id: String) {
+            if items.indices.contains(index) { select(id, for: items[index].id) }
+        }
+        choose(0, "pdf"); choose(1, "gif"); choose(2, "jpg"); choose(3, "java")
+        choose(4, "mp3"); choose(6, "pdf")
+        if items.count > 3 {
+            items[3].phase = .finished(folder.appendingPathComponent("code/hello.py"), .passed(checker: "javac"))
+        }
+        if items.count > 4 {
+            items[4].phase = .failed("silent.mp4 has no sound track, so there is no audio to save as MP3 audio.")
+        }
+        if items.count > 5 { items[5].phase = .converting }
     }
 }

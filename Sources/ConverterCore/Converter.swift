@@ -170,6 +170,8 @@ public struct Converter: Sendable {
             return (try await runAssimp(input: input, target: target, workDir: workDir, log: &log), nil)
         case .calibre:
             return (try await runCalibre(input: input, target: target, workDir: workDir, log: &log), nil)
+        case .builtin:
+            return (try await runBuiltin(input: input, target: target, workDir: workDir, log: &log), nil)
         case .archiver:
             return (try await runArchive(input: input, target: target, workDir: workDir, log: &log), nil)
         case .ollama:
@@ -535,7 +537,7 @@ public struct Converter: Sendable {
     }
 
     /// Runs a tool, logs the command, and throws if it fails.
-    private func execute(_ tool: String, _ executable: URL, _ arguments: [String], cwd: URL? = nil,
+    func execute(_ tool: String, _ executable: URL, _ arguments: [String], cwd: URL? = nil,
                          environment: [String: String] = [:], log: inout [String]) async throws {
         log.append("\(executable.lastPathComponent) \(arguments.joined(separator: " "))")
         let result = try await ProcessRunner.run(executable, arguments: arguments,
@@ -548,7 +550,7 @@ public struct Converter: Sendable {
 
     // MARK: Helpers
 
-    private func requireOutput(_ url: URL, tool: String) throws -> URL {
+    func requireOutput(_ url: URL, tool: String) throws -> URL {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw ConversionError.outputMissing(tool: tool)
         }

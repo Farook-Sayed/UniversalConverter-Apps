@@ -69,18 +69,20 @@ extension FormatCatalog {
     }
 
     /// Every way to convert a file: direct conversions first, then chains of up to three steps.
-    public static func targets(for source: DetectedFile) -> [Route] {
-        routes(fromFormat: source.formatID, category: source.category)
+    public static func targets(for source: DetectedFile,
+                               available: (Engine) -> Bool = { _ in true }) -> [Route] {
+        routes(fromFormat: source.formatID, category: source.category, available: available)
     }
 
-    static func routes(fromFormat formatID: String, category sourceCategory: MediaCategory) -> [Route] {
+    static func routes(fromFormat formatID: String, category sourceCategory: MediaCategory,
+                       available: (Engine) -> Bool) -> [Route] {
         var found: [String: Route] = [:]
         var order: [String] = []
         var visited: Set<String> = [formatID]
         var frontier: [Route] = []
 
         // Step one: the direct conversions, which are always the shortest route.
-        for output in directTargets(formatID: formatID, category: sourceCategory)
+        for output in directTargets(formatID: formatID, category: sourceCategory, available: available)
         where !visited.contains(output.id) {
             let step = RouteStep(inputFormatID: formatID, inputCategory: sourceCategory, output: output,
                                  outputCategory: outputCategory(ofFormat: output.id))
@@ -101,7 +103,8 @@ extension FormatCatalog {
             for route in frontier {
                 let node = route.steps[route.steps.count - 1]
                 guard node.outputCategory != .code else { continue }
-                for output in directTargets(formatID: node.output.id, category: node.outputCategory) {
+                for output in directTargets(formatID: node.output.id, category: node.outputCategory,
+                                            available: available) {
                     guard output.engine != .ollama, !visited.contains(output.id) else { continue }
                     let category = outputCategory(ofFormat: output.id)
                     guard category != sourceCategory else { continue }

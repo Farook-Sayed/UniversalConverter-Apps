@@ -15,33 +15,15 @@ The app reads a file's real contents, so a file with the wrong extension is stil
 
 Keep about 10 GB free for conversions. Each conversion needs room for its input and its output.
 
-## 2. Install the tools
+## 2. Get started
 
-Run these in Terminal. Each one is needed only for the formats it converts.
+The app works right after you open it. Images, Word and text documents, audio (WAV, M4A) and archives (ZIP, TAR) need nothing else.
 
-```bash
-brew install ffmpeg imagemagick pandoc p7zip ollama poppler ghostscript assimp xcodegen
-brew install --cask libreoffice calibre
-ollama pull qwen2.5-coder:7b
-```
+For more formats, open **Settings → Tools**. Each group says what it adds and roughly how big it is. Click **Install** next to the ones you want. The app installs them with Homebrew and shows the progress in the status bar at the bottom of the window. When an install finishes, a message appears above the file list and the new formats show up in the menus.
 
-For the code checks, also install the language tools you want checked:
+If you do not have Homebrew, the Tools tab links to [brew.sh](https://brew.sh). Install it once, then come back.
 
-```bash
-brew install python@3.12 node go rust
-npm install -g typescript
-```
-
-C and C++ use clang, which comes with the Xcode command line tools (`xcode-select --install`). Java needs a JDK, for example `brew install openjdk`.
-
-Font conversion needs fontTools in its own Python environment. Run these once:
-
-```bash
-python3.12 -m venv ~/.venvs/converter
-~/.venvs/converter/bin/pip install fonttools brotli
-```
-
-The app's **Tools** panel (at the bottom of the window) shows which tools it found. If one is marked "Not installed", the matching conversions are unavailable.
+Code translation downloads a model of about 4.7 GB the first time. It works best with 16 GB of memory.
 
 ## 3. Build and open the app
 

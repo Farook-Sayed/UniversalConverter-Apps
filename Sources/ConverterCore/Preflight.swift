@@ -149,6 +149,8 @@ public enum Preflight {
         case .ghostscript:
             return tools.locate(["gs"]) == nil
                 ? Finding(severity: .blocking, message: "Ghostscript is not installed. Install it with: brew install ghostscript") : nil
+        case .builtin:
+            return nil
         case .calibre:
             return tools.locate(["ebook-convert"]) == nil
                 ? Finding(severity: .blocking, message: "Calibre is not installed. Install it with: brew install --cask calibre") : nil

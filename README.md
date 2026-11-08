@@ -57,24 +57,12 @@ file  →  detect by content  →  plan a route  →  run each step  →  result
 - Xcode, to build the app.
 - About 6 GB of disk space, mostly for LibreOffice and the code model. 16 GB of RAM is comfortable.
 
-## Install the tools
+## Get started
 
-```bash
-brew install ffmpeg imagemagick pandoc p7zip ollama poppler ghostscript assimp xcodegen
-brew install --cask libreoffice calibre
-ollama pull qwen2.5-coder:7b
-```
+1. **Open the app.** Images, Word and text documents, audio (WAV, M4A) and archives (ZIP, TAR) work straight away. They use tools that come with macOS, so there is nothing to install.
+2. **For more formats, open Settings → Tools** and click **Install** next to what you need. The app runs Homebrew for you and shows progress in the status bar.
 
-Optional, for the code checks and font conversion:
-
-```bash
-brew install python@3.12 node go rust
-npm install -g typescript
-python3.12 -m venv ~/.venvs/converter
-~/.venvs/converter/bin/pip install fonttools brotli
-```
-
-The app's **Settings → Tools** tab shows which tools it found. A tool that is missing only blocks the conversions that need it.
+Installs use [Homebrew](https://brew.sh). If you do not have it, install it once from that page, then come back to the app.
 
 ## Build and run
 

@@ -3,6 +3,8 @@ import Foundation
 /// Which program does the actual conversion.
 public enum Engine: String, Sendable, CaseIterable {
     case ffmpeg, imagemagick, libreoffice, pandoc, ollama, archiver, fonttools, poppler, ghostscript, assimp, calibre
+    /// macOS's own tools. Used when the optional tool for a conversion is not installed.
+    case builtin
 }
 
 /// A format the user can convert a file into.
@@ -11,6 +13,13 @@ public struct OutputFormat: Hashable, Sendable, Identifiable {
     public let label: String
     public let fileExtension: String
     public let engine: Engine
+
+    public init(id: String, label: String, fileExtension: String, engine: Engine) {
+        self.id = id
+        self.label = label
+        self.fileExtension = fileExtension
+        self.engine = engine
+    }
 }
 
 /// A programming language that the Ollama code branch can translate to or from.
@@ -202,7 +211,8 @@ public enum FormatCatalog {
 
     /// Single-step conversions from one format, in the order the tables list them.
     /// Multi-step routes are built on top of these in Routing.swift.
-    public static func directTargets(formatID: String, category: MediaCategory) -> [OutputFormat] {
+    public static func directTargets(formatID: String, category: MediaCategory,
+                                     available: (Engine) -> Bool = { _ in true }) -> [OutputFormat] {
         let candidates: [String]
         switch category {
         case .video: candidates = videoTargets
@@ -235,7 +245,12 @@ public enum FormatCatalog {
 
         return candidates.compactMap { target -> OutputFormat? in
             guard target != formatID else { return nil }
-            guard let engine = engine(formatID: formatID, category: category, target: target) else { return nil }
+            guard var engine = engine(formatID: formatID, category: category, target: target) else { return nil }
+            if !available(engine) {
+                // Use macOS's own tool where it can do the job. Otherwise leave this option out.
+                guard BuiltinEngine.supports(sourceID: formatID, targetID: target) else { return nil }
+                engine = .builtin
+            }
             let label: String
             if let code = codeLanguage(forID: target) {
                 label = code.label
