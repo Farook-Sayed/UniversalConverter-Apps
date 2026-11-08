@@ -1,0 +1,62 @@
+# XcodeGen spec. Run `xcodegen generate` to create "Universal Converter.xcodeproj".
+# The app is built by Xcode so that App Intents (Shortcuts and Siri) are registered.
+name: Universal Converter
+options:
+  bundleIdPrefix: local
+  deploymentTarget:
+    macOS: "14.0"
+packages:
+  ConverterCorePackage:
+    path: .
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_IDENTITY: "-"
+    ENABLE_HARDENED_RUNTIME: NO
+targets:
+  Universal Converter:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/FileConverter
+      - path: Icon/AppIcon.icon
+      - path: GUIDE.md
+    dependencies:
+      - package: ConverterCorePackage
+        product: ConverterCore
+    settings:
+      base:
+        PRODUCT_NAME: Universal Converter
+        PRODUCT_BUNDLE_IDENTIFIER: local.universalconverter.app
+        INFOPLIST_FILE: Resources/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_APP_SANDBOX: NO
+  UniversalConverterTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/ConverterCoreTests
+    dependencies:
+      - package: ConverterCorePackage
+        product: ConverterCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: local.universalconverter.tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Universal Converter:
+    build:
+      targets:
+        Universal Converter: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - UniversalConverterTests
+    profile:
+      config: Release
+    archive:
+      config: Release

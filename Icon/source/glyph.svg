@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Source document, faded -->
+  <rect x="236" y="214" width="306" height="392" rx="58" fill="#FFFFFF" fill-opacity="0.45"/>
+  <rect x="290" y="300" width="190" height="22" rx="11" fill="#2563EB" fill-opacity="0.35"/>
+  <rect x="290" y="352" width="150" height="22" rx="11" fill="#2563EB" fill-opacity="0.35"/>
+  <!-- Target document, solid -->
+  <rect x="482" y="418" width="306" height="392" rx="58" fill="#FFFFFF"/>
+  <rect x="536" y="504" width="190" height="22" rx="11" fill="#2563EB" fill-opacity="0.35"/>
+  <rect x="536" y="556" width="150" height="22" rx="11" fill="#2563EB" fill-opacity="0.35"/>
+  <!-- Conversion arrow -->
+  <circle cx="512" cy="512" r="104" fill="#FFFFFF"/>
+  <path d="M 452 512 H 566 M 534 476 L 570 512 L 534 548" fill="none" stroke="#2563EB" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

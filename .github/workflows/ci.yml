@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Run tests
+        # Tests that need a conversion tool skip themselves when it is not installed.
+        run: swift test
+
+  app:
+    name: Build the app
+    runs-on: macos-latest
+    # The app uses newer macOS APIs than some runners have. A failure here does not block a merge.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Build
+        run: ./scripts/make-app.sh

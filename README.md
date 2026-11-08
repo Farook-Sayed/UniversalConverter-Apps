@@ -1,0 +1,131 @@
+# Universal Converter
+
+A native macOS app that converts files from one format to another. Drop a file on it, pick a format, and it does the rest. It reads what is *inside* a file to work out its type, so a file with the wrong name still works.
+
+<p align="center">
+  <img src="docs/images/files-light.png" width="48%" alt="The file list in light mode">
+  <img src="docs/images/files-dark.png" width="48%" alt="The file list in dark mode">
+</p>
+
+Everything runs on your Mac. Nothing is uploaded. Code translation uses a model that runs locally through [Ollama](https://ollama.com).
+
+## What it converts
+
+| Kind | Formats |
+|---|---|
+| Video | MP4, MKV, WebM, AVI, MOV, WMV, FLV, 3GP, M2TS, MPG, VOB, GIF |
+| Audio | MP3, WAV, FLAC, M4A, OGG |
+| Images | PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, HEIC, SVG, PDF |
+| Documents | DOCX, DOC, ODT, RTF, PDF, HTML, TXT, Markdown, EPUB, Jupyter notebooks |
+| Spreadsheets, slides | XLSX, XLS, ODS, CSV, PPTX, PPT, ODP |
+| E-books | EPUB, MOBI, AZW3, FB2 |
+| PostScript | PS, EPS |
+| 3D models | OBJ, STL, PLY, COLLADA, glTF, GLB |
+| Fonts | TTF, OTF, WOFF, WOFF2 |
+| Subtitles | SRT, VTT, ASS |
+| Archives | ZIP, 7z, tar.gz, tar |
+| Code | Python, Java, C, C++, Rust, JavaScript, TypeScript, Ruby, Go, C# |
+
+Some conversions need several steps, such as Markdown to PDF. The app finds the chain for you and shows it in the format menu. See [GUIDE.md](GUIDE.md) for the full list.
+
+## How it works
+
+The app does not convert anything itself. It identifies the file, plans a route, and runs the right tools:
+
+```
+file  →  detect by content  →  plan a route  →  run each step  →  result
+                                  (up to 3 steps)
+```
+
+| Tool | Used for |
+|---|---|
+| FFmpeg | Video, audio, subtitles |
+| ImageMagick | Images |
+| LibreOffice | Documents, spreadsheets, slides |
+| Pandoc | Markdown, HTML, EPUB, notebooks |
+| Calibre | E-books |
+| Poppler, Ghostscript | PDF and PostScript |
+| Assimp | 3D models |
+| 7-Zip, tar | Archives |
+| fontTools | Fonts |
+| Ollama | Code translation, checked afterwards with each language's own compiler or parser |
+
+## Requirements
+
+- A Mac with Apple silicon, running macOS 14 or later. (Built and tested on macOS 27.)
+- [Homebrew](https://brew.sh), to install the tools.
+- Xcode, to build the app.
+- About 6 GB of disk space, mostly for LibreOffice and the code model. 16 GB of RAM is comfortable.
+
+## Install the tools
+
+```bash
+brew install ffmpeg imagemagick pandoc p7zip ollama poppler ghostscript assimp xcodegen
+brew install --cask libreoffice calibre
+ollama pull qwen2.5-coder:7b
+```
+
+Optional, for the code checks and font conversion:
+
+```bash
+brew install python@3.12 node go rust
+npm install -g typescript
+python3.12 -m venv ~/.venvs/converter
+~/.venvs/converter/bin/pip install fonttools brotli
+```
+
+The app's **Settings → Tools** tab shows which tools it found. A tool that is missing only blocks the conversions that need it.
+
+## Build and run
+
+```bash
+git clone <this repository>
+cd FileConverter
+./scripts/make-app.sh
+open "build/Universal Converter.app"
+```
+
+`make-app.sh` generates the Xcode project from `project.yml` and builds it. The generated `Universal Converter.xcodeproj` is also checked in, so you can open it in Xcode directly.
+
+The app is signed ad hoc, so it runs on the Mac that built it. To share a build, sign it with your own Developer ID and notarize it. Change the bundle identifier in `project.yml` and `Resources/Info.plist` first.
+
+## Tests
+
+```bash
+swift test
+```
+
+Tests that need a tool skip themselves when it is not installed. To test every conversion on real files:
+
+```bash
+./scripts/make-test-files.sh
+FC_RUN_MATRIX=1 swift test --filter ConversionMatrixTests
+```
+
+The matrix converts each sample file to every format offered for it and checks each result. It takes several minutes and writes `build/matrix-report.txt`.
+
+## Project layout
+
+```
+Sources/ConverterCore/   Detection, routing, tool calls, warnings. No user interface.
+Sources/FileConverter/   The SwiftUI app: window, settings, Shortcuts action.
+Tests/ConverterCoreTests Unit tests, integration tests, and the conversion matrix.
+scripts/                 Build, sample files, and design snapshots.
+Icon/                    The app icon, in Icon Composer format (Liquid Glass).
+docs/                    Images for this page.
+```
+
+More: [GUIDE.md](GUIDE.md) (using the app), [DESIGN.md](DESIGN.md) (design rules), [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Known limits
+
+- Code over 60 KB is refused. The local model cannot read more at once.
+- PDF to image saves only the first page.
+- Translated code is checked for syntax. It is not tested for behaviour.
+- Archives are fully extracted to a temporary folder first. A very large archive needs that much free space.
+- RAR files are not supported.
+- Only tested on Apple silicon.
+
+## License
+
+[MIT](LICENSE). The tools the app runs are separate programs with their own licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

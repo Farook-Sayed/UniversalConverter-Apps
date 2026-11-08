@@ -1,0 +1,20 @@
+# Build output
+.build/
+build/
+DerivedData/
+*.xcarchive
+
+# Xcode user data
+xcuserdata/
+*.xcuserstate
+
+# SwiftPM
+.swiftpm/
+Package.resolved
+
+# macOS
+.DS_Store
+
+# Generated sample files (made by scripts/make-test-files.sh). They include fonts from the Mac they were made on.
+TestFiles/
+TestFiles.zip
