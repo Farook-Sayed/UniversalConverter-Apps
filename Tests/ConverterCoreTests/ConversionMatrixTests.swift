@@ -16,6 +16,16 @@ final class ConversionMatrixTests: XCTestCase {
         ("fonts/sample.woff2", "TrueType"),
     ]
 
+    /// A folder of page images is checked through its first image. Other results are returned as they are.
+    private func firstFileIfFolder(_ url: URL) throws -> URL {
+        var isFolder: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), isFolder.boolValue else {
+            return url
+        }
+        let files = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
+        return files.min { $0.path < $1.path } ?? url
+    }
+
     private var projectRoot: URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()  // ConverterCoreTests
@@ -40,6 +50,11 @@ final class ConversionMatrixTests: XCTestCase {
         for input in try sampleFiles(in: samples) {
             let name = input.path.replacingOccurrences(of: samples.path + "/", with: "")
             let detected = try detector.detect(url: input)
+            // Translating every code sample into every language takes hours, so that part can be left out.
+            if detected.category == .code, ProcessInfo.processInfo.environment["FC_MATRIX_SKIP_CODE"] == "1" {
+                report.append("--    \(name): skipped (FC_MATRIX_SKIP_CODE)")
+                continue
+            }
             let targets = FormatCatalog.targets(for: detected)
             if targets.isEmpty {
                 report.append("--    \(name): no conversions offered (\(detected.formatID))")
@@ -51,7 +66,7 @@ final class ConversionMatrixTests: XCTestCase {
                 do {
                     let result = try await converter.convert(
                         ConversionRequest(input: detected, route: target, outputDirectory: folder))
-                    let produced = try detector.detect(url: result.outputURL)
+                    let produced = try detector.detect(url: firstFileIfFolder(result.outputURL))
                     if produced.formatID == target.id {
                         report.append("OK     \(label)")
                     } else {

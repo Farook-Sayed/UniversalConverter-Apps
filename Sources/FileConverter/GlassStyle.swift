@@ -20,16 +20,23 @@ extension View {
     }
 
     /// The main action button: Liquid Glass prominent on macOS 26 and later, bordered prominent before.
+    /// A disabled button is plain, because a tinted button with nothing to do looks like it can be clicked.
     @ViewBuilder
-    func prominentButtonStyle() -> some View {
+    func prominentButtonStyle(enabled: Bool = true) -> some View {
         #if compiler(>=6.2)
-        if #available(macOS 26.0, *) {
+        if !enabled {
+            self.buttonStyle(.bordered)
+        } else if #available(macOS 26.0, *) {
             self.buttonStyle(.glassProminent)
         } else {
             self.buttonStyle(.borderedProminent)
         }
         #else
-        self.buttonStyle(.borderedProminent)
+        if enabled {
+            self.buttonStyle(.borderedProminent)
+        } else {
+            self.buttonStyle(.bordered)
+        }
         #endif
     }
 

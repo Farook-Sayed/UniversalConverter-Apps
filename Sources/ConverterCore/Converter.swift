@@ -5,11 +5,19 @@ public struct ConversionRequest: Sendable {
     /// One conversion, or several in a row, ending at the chosen format.
     public let route: Route
     public let outputDirectory: URL
+    /// How hard a PDF is compressed, when the route makes a smaller PDF.
+    public let pdfCompression: PDFCompression
 
-    public init(input: DetectedFile, route: Route, outputDirectory: URL) {
+    /// What the user changed about an image: size, crop, background, style and compression.
+    public let imageAdjustments: ImageAdjustments
+
+    public init(input: DetectedFile, route: Route, outputDirectory: URL, pdfCompression: PDFCompression = .medium,
+                imageAdjustments: ImageAdjustments = .unchanged) {
         self.input = input
         self.route = route
         self.outputDirectory = outputDirectory
+        self.pdfCompression = pdfCompression
+        self.imageAdjustments = imageAdjustments
     }
 }
 
@@ -20,6 +28,8 @@ public struct ConversionResult: Sendable {
     public let log: [String]
     /// Set for code translations only.
     public let validation: ValidationResult?
+    /// Things the user should know about the result, such as a size that could not be reached.
+    public let notes: [String]
 }
 
 /// Status of one external tool, for the "Tools" panel.
@@ -62,7 +72,7 @@ public struct ToolLocator: Sendable {
             ("magick", "ImageMagick", ["magick", "convert"], "Images"),
             ("soffice", "LibreOffice", ["soffice"], "Documents, spreadsheets, slides"),
             ("pandoc", "Pandoc", ["pandoc"], "Markdown, HTML, EPUB"),
-            ("7z", "7-Zip", ["7z", "7zz"], "ZIP and 7z archives"),
+            ("7z", "7-Zip", ["7zz", "7z"], "ZIP and 7z archives"),
             ("poppler", "Poppler", ["pdftotext", "pdftoppm"], "PDF text and page images"),
             ("gs", "Ghostscript", ["gs"], "PostScript and EPS"),
             ("assimp", "Assimp", ["assimp"], "3D models"),
@@ -86,6 +96,8 @@ public struct Converter: Sendable {
     public let repairAttempts: Int
     /// Reports what the conversion is doing now, such as "Translating part 2 of 5". Shown in the queue.
     public let progress: @Sendable (String) -> Void
+    /// How several page images are delivered. One page is always a single image.
+    public let pageOutput: PageOutput
 
     /// Source files larger than this are refused. Files up to this size are split at top-level definitions,
     /// and each part is translated on its own.
@@ -95,11 +107,12 @@ public struct Converter: Sendable {
     public static let audioOnlyTargets: Set<String> = ["mp3", "wav", "flac", "m4a", "ogg"]
 
     public init(tools: ToolLocator = ToolLocator(), ollama: OllamaClient = OllamaClient(), repairAttempts: Int = 1,
-                progress: @escaping @Sendable (String) -> Void = { _ in }) {
+                pageOutput: PageOutput = .folder, progress: @escaping @Sendable (String) -> Void = { _ in }) {
         self.tools = tools
         self.ollama = ollama
         self.validator = CodeValidator(tools: tools)
         self.repairAttempts = repairAttempts
+        self.pageOutput = pageOutput
         self.progress = progress
     }
 
@@ -119,6 +132,7 @@ public struct Converter: Sendable {
             : FileNames.stem(request.input.url)
 
         var log: [String] = []
+        var notes: [String] = []
         var validation: ValidationResult?
         var current = request.input
         let stepCount = request.route.steps.count
@@ -135,7 +149,9 @@ public struct Converter: Sendable {
             }
             progress(stepCount > 1 ? "Step \(index + 1) of \(stepCount)…" : "Converting…")
             let (produced, check) = try await runStep(input: current, target: step.output, stem: stem,
-                                                      workDir: stepDir, log: &log)
+                                                      workDir: stepDir, log: &log, notes: &notes,
+                                                      compression: request.pdfCompression,
+                                                      imageAdjustments: request.imageAdjustments)
             if isLast { validation = check }
             current = DetectedFile(url: produced, category: step.outputCategory, formatID: step.output.id,
                                    mimeType: "application/octet-stream", method: .magicBytes,
@@ -145,16 +161,19 @@ public struct Converter: Sendable {
         // A cancelled conversion must not leave a finished file behind.
         try Task.checkCancellation()
         try FileManager.default.createDirectory(at: request.outputDirectory, withIntermediateDirectories: true)
-        let finalURL = OutputNaming.uniqueURL(stem: finalStem, ext: finalTarget.fileExtension,
-                                              in: request.outputDirectory)
-        try FileManager.default.moveItem(at: current.url, to: finalURL)
+        // A folder of pages has no extension. A ZIP file of pages keeps its own. Everything else takes the target's.
+        let produced = current.url
+        let ext: String? = Self.isFolder(produced) ? nil
+            : (produced.pathExtension == "zip" ? "zip" : finalTarget.fileExtension)
+        let finalURL = try OutputNaming.move(current.url, stem: finalStem, ext: ext, into: request.outputDirectory)
         return ConversionResult(outputURL: finalURL, engine: finalTarget.engine, log: log,
-                                validation: validation)
+                                validation: validation, notes: notes)
     }
 
     /// One conversion, run by the engine the step names.
     private func runStep(input: DetectedFile, target: OutputFormat, stem: String, workDir: URL,
-                         log: inout [String]) async throws -> (URL, ValidationResult?) {
+                         log: inout [String], notes: inout [String],
+                         compression: PDFCompression, imageAdjustments: ImageAdjustments) async throws -> (URL, ValidationResult?) {
         switch target.engine {
         case .ffmpeg:
             return (try await runFFmpeg(input: input, target: target, workDir: workDir, log: &log), nil)
@@ -170,15 +189,24 @@ public struct Converter: Sendable {
         case .poppler:
             return (try await runPoppler(input: input, target: target, workDir: workDir, log: &log), nil)
         case .ghostscript:
+            if input.formatID == "pdf" {
+                return (try await compressPDF(input: input, compression: compression, workDir: workDir,
+                                              log: &log, notes: &notes), nil)
+            }
             return (try await runGhostscript(input: input, target: target, workDir: workDir, log: &log), nil)
         case .assimp:
             return (try await runAssimp(input: input, target: target, workDir: workDir, log: &log), nil)
         case .calibre:
             return (try await runCalibre(input: input, target: target, workDir: workDir, log: &log), nil)
+        case .imageio:
+            return (try await runImageIO(input: input, target: target, adjustments: imageAdjustments,
+                                         workDir: workDir, log: &log, notes: &notes), nil)
         case .builtin:
-            return (try await runBuiltin(input: input, target: target, workDir: workDir, log: &log), nil)
+            return (try await runBuiltin(input: input, target: target, workDir: workDir, log: &log,
+                                         notes: &notes), nil)
         case .archiver:
-            return (try await runArchive(input: input, target: target, workDir: workDir, log: &log), nil)
+            return (try await runArchive(input: input, target: target, workDir: workDir, log: &log,
+                                         notes: &notes), nil)
         case .ollama:
             let translation = try await runCodeTranslation(input: input, target: target, stem: stem,
                                                            workDir: workDir, log: &log)
@@ -196,7 +224,7 @@ public struct Converter: Sendable {
             let audible = try await hasAudio(input.url)
             guard audible else {
                 throw ConversionError.unsupported(
-                    "\(input.url.lastPathComponent) has no sound track, so there is no audio to save as \(target.label).")
+                    "\(input.url.lastPathComponent) has no sound track, so there is no audio to save.")
             }
         }
         let output = workDir.appendingPathComponent("out.\(target.fileExtension)")
@@ -332,7 +360,7 @@ public struct Converter: Sendable {
         guard size <= Self.maxCodeBytes else {
             throw ConversionError.inputTooLarge(bytes: size, limit: Self.maxCodeBytes)
         }
-        let code = try String(contentsOf: input.url, encoding: .utf8)
+        let code = try CodeText.read(input.url)
 
         guard await ollama.ensureRunning(tools: tools) else {
             throw ConversionError.ollamaUnavailable("Could not start Ollama. Open the Ollama app or run ollama serve, then try again.")
@@ -401,39 +429,125 @@ public struct Converter: Sendable {
         return text
     }
 
-    /// PDF to text or to an image of the first page (Poppler).
+    /// PDF to text, or to one image per page (Poppler).
     private func runPoppler(input: DetectedFile, target: OutputFormat, workDir: URL,
                             log: inout [String]) async throws -> URL {
-        let output = workDir.appendingPathComponent("out.\(target.fileExtension)")
         if target.id == "txt" {
             guard let tool = tools.locate(["pdftotext"]) else { throw ConversionError.toolNotFound("Poppler") }
+            let output = workDir.appendingPathComponent("out.txt")
             try await execute("pdftotext", tool, ["-enc", "UTF-8", input.url.path, output.path], log: &log)
-        } else {
-            // pdftoppm adds the .png or .jpg extension to the prefix itself.
-            guard let tool = tools.locate(["pdftoppm"]) else { throw ConversionError.toolNotFound("Poppler") }
-            let format = target.id == "jpg" ? "-jpeg" : "-png"
-            let prefix = workDir.appendingPathComponent("out").path
-            try await execute("pdftoppm", tool, [format, "-singlefile", "-r", "150", "-f", "1", "-l", "1",
-                                                 input.url.path, prefix], log: &log)
+            return try requireOutput(output, tool: "Poppler")
         }
-        return try requireOutput(output, tool: "Poppler")
+        // No -f or -l options, so every page is converted. pdftoppm names the files page-1.png, page-2.png and so on.
+        guard let tool = tools.locate(["pdftoppm"]) else { throw ConversionError.toolNotFound("Poppler") }
+        let format = target.id == "jpg" ? "-jpeg" : "-png"
+        let pages = try makePagesFolder(workDir)
+        try await execute("pdftoppm", tool, [format, "-r", "150", input.url.path,
+                                             pages.appendingPathComponent("page").path], log: &log)
+        return try await packagePages(pages, ext: target.fileExtension, workDir: workDir, log: &log, tool: "Poppler")
     }
 
-    /// PostScript and EPS to PDF or to an image of the first page (Ghostscript).
+    /// PostScript and EPS to PDF, or to one image per page (Ghostscript).
     private func runGhostscript(input: DetectedFile, target: OutputFormat, workDir: URL,
                                 log: inout [String]) async throws -> URL {
         guard let tool = tools.locate(["gs"]) else { throw ConversionError.toolNotFound("Ghostscript") }
-        let output = workDir.appendingPathComponent("out.\(target.fileExtension)")
-        var args = ["-q", "-dNOPAUSE", "-dBATCH", "-dSAFER"]
+        let base = ["-q", "-dNOPAUSE", "-dBATCH", "-dSAFER"]
+        if target.id == "pdf" {
+            let output = workDir.appendingPathComponent("out.pdf")
+            try await execute("Ghostscript", tool, base + ["-sDEVICE=pdfwrite", "-sOutputFile=\(output.path)",
+                                                           input.url.path], log: &log)
+            return try requireOutput(output, tool: "Ghostscript")
+        }
+        let device: [String]
         switch target.id {
-        case "pdf": args += ["-sDEVICE=pdfwrite"]
-        case "png": args += ["-sDEVICE=png16m", "-r150", "-dFirstPage=1", "-dLastPage=1"]
-        case "jpg": args += ["-sDEVICE=jpeg", "-dJPEGQ=90", "-r150", "-dFirstPage=1", "-dLastPage=1"]
+        case "png": device = ["-sDEVICE=png16m", "-r150"]
+        case "jpg": device = ["-sDEVICE=jpeg", "-dJPEGQ=90", "-r150"]
         default: throw ConversionError.unsupported("Ghostscript cannot write \(target.id).")
         }
-        args += ["-sOutputFile=\(output.path)", input.url.path]
-        try await execute("Ghostscript", tool, args, log: &log)
-        return try requireOutput(output, tool: "Ghostscript")
+        // %03d is replaced by the page number, so each page gets its own file.
+        let pages = try makePagesFolder(workDir)
+        try await execute("Ghostscript", tool, base + device
+                          + ["-sOutputFile=\(pages.path)/page-%03d.\(target.fileExtension)", input.url.path], log: &log)
+        return try await packagePages(pages, ext: target.fileExtension, workDir: workDir, log: &log, tool: "Ghostscript")
+    }
+
+    /// Makes a PDF smaller with Ghostscript. A preset runs once. A custom size tries stronger settings until the
+    /// file fits. If nothing fits, the smallest result is kept and a note says so. A result that is not smaller
+    /// than the original is replaced by a copy of the original.
+    private func compressPDF(input: DetectedFile, compression: PDFCompression, workDir: URL,
+                             log: inout [String], notes: inout [String]) async throws -> URL {
+        guard let tool = tools.locate(["gs"]) else { throw ConversionError.toolNotFound("Ghostscript") }
+        let originalSize = Int(Preflight.fileSize(input.url))
+        let kept = workDir.appendingPathComponent("out.pdf")
+        func keepOriginal() throws -> URL {
+            try FileManager.default.copyItem(at: input.url, to: kept)
+            return kept
+        }
+
+        if let goal = compression.goalBytes, originalSize <= goal {
+            notes.append("The file is already \(FileSize.text(goal)) or smaller, so it was not changed.")
+            return try keepOriginal()
+        }
+
+        let base = ["-q", "-dNOPAUSE", "-dBATCH", "-dSAFER", "-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.6"]
+        let attempts = compression.attempts
+        var smallest: (url: URL, size: Int)?
+        for (index, settings) in attempts.enumerated() {
+            try Task.checkCancellation()
+            progress(attempts.count > 1 ? "Compressing, try \(index + 1) of \(attempts.count)" : "Compressing")
+            let output = workDir.appendingPathComponent("compressed-\(index).pdf")
+            try await execute("Ghostscript", tool, base + settings + ["-sOutputFile=\(output.path)", input.url.path],
+                              log: &log)
+            let size = Int(Preflight.fileSize(output))
+            guard size > 0 else { continue }
+            if smallest.map({ size < $0.size }) ?? true {
+                smallest = (output, size)
+            }
+            if let goal = compression.goalBytes, size <= goal { break }
+        }
+
+        guard let best = smallest else { throw ConversionError.outputMissing(tool: "Ghostscript") }
+        if best.size >= originalSize {
+            notes.append("Compression did not make this file smaller, so the original was kept.")
+            return try keepOriginal()
+        }
+        if let goal = compression.goalBytes, best.size > goal {
+            notes.append("Could not get the file to \(FileSize.text(goal)). The smallest version is \(FileSize.text(best.size)).")
+        }
+        try FileManager.default.moveItem(at: best.url, to: kept)
+        return kept
+    }
+
+    private func makePagesFolder(_ workDir: URL) throws -> URL {
+        let pages = workDir.appendingPathComponent("pages", isDirectory: true)
+        try FileManager.default.createDirectory(at: pages, withIntermediateDirectories: true)
+        return pages
+    }
+
+    /// Turns a folder of page images into the step's result. One page stays a single image. Several pages become
+    /// a folder, or a ZIP file when the user chose that in Settings.
+    private func packagePages(_ pages: URL, ext: String, workDir: URL, log: inout [String],
+                              tool: String) async throws -> URL {
+        let images = try FileManager.default.contentsOfDirectory(at: pages, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == ext }
+        guard !images.isEmpty else { throw ConversionError.outputMissing(tool: tool) }
+        if images.count == 1 {
+            let single = workDir.appendingPathComponent("out.\(ext)")
+            try FileManager.default.moveItem(at: images[0], to: single)
+            return single
+        }
+        switch pageOutput {
+        case .folder:
+            log.append("\(images.count) pages, one image each, saved in a folder")
+            return pages
+        case .zip:
+            guard let ditto = tools.locate(["ditto"]) else { throw ConversionError.toolNotFound("ditto") }
+            let zip = workDir.appendingPathComponent("out.zip")
+            log.append("\(images.count) pages, one image each, saved in a ZIP file")
+            try await execute("ditto", ditto, ["-c", "-k", "--norsrc", "--noextattr", "--noqtn", pages.path, zip.path],
+                               log: &log)
+            return try requireOutput(zip, tool: "ditto")
+        }
     }
 
     /// 3D models (Assimp). The target's Assimp format name is set by `assimpFormat`.
@@ -517,22 +631,36 @@ public struct Converter: Sendable {
 
     /// Unpacks an archive into a private folder, then packs the same top-level items in the new format.
     private func runArchive(input: DetectedFile, target: OutputFormat, workDir: URL,
-                            log: inout [String]) async throws -> URL {
+                            log: inout [String], notes: inout [String]) async throws -> URL {
         let extracted = workDir.appendingPathComponent("extracted", isDirectory: true)
         try FileManager.default.createDirectory(at: extracted, withIntermediateDirectories: true)
 
         // 7-Zip reads ZIP and 7z. The system tar reads tar and tar.gz.
         switch input.formatID {
-        case "zip", "7z", "rar":
-            // 7-Zip reads RAR too. It cannot write RAR, so RAR is only ever an input.
-            try await execute("7-Zip", try requireSevenZip(),
-                              ["x", "-y", "-o" + extracted.path, input.url.path], log: &log)
+        case "zip", "7z":
+            try await extractWithSevenZip(input.url, into: extracted, log: &log)
+        case "rar":
+            // macOS's tar (libarchive) reads RAR5 files that 7-Zip cannot decompress, so it goes first.
+            // 7-Zip is the fallback. RAR is only ever an input, because neither tool can write RAR.
+            do {
+                try await execute("tar", try requireTar(), ["-xf", input.url.path, "-C", extracted.path], log: &log)
+            } catch {
+                log.append("tar could not read the RAR file, trying 7-Zip")
+                try? FileManager.default.removeItem(at: extracted)
+                try FileManager.default.createDirectory(at: extracted, withIntermediateDirectories: true)
+                do {
+                    try await extractWithSevenZip(input.url, into: extracted, log: &log)
+                } catch ConversionError.toolFailed(_, _, let message) where message.contains("Unsupported Method") {
+                    throw ConversionError.unsupported("This RAR archive uses a compression method that neither tar nor 7-Zip can read. Extract it with another app, then convert the files.")
+                }
+            }
         case "targz", "tar":
             try await execute("tar", try requireTar(),
                               ["-xf", input.url.path, "-C", extracted.path], log: &log)
         default:
             throw ConversionError.unsupported("This archive type cannot be opened yet.")
         }
+        Self.dropLinks(in: extracted, notes: &notes)
 
         let items = try FileManager.default.contentsOfDirectory(atPath: extracted.path).sorted()
         guard !items.isEmpty else {
@@ -560,13 +688,23 @@ public struct Converter: Sendable {
 
     private func requireSevenZip() throws -> URL {
         // "7zz" is the name used by Homebrew's newer 7-Zip package. "7z" comes from p7zip.
-        guard let tool = tools.locate(["7z", "7zz"]) else { throw ConversionError.toolNotFound("7-Zip") }
+        guard let tool = tools.locate(["7zz", "7z"]) else { throw ConversionError.toolNotFound("7-Zip") }
         return tool
     }
 
     private func requireTar() throws -> URL {
         guard let tool = tools.locate(["tar"]) else { throw ConversionError.toolNotFound("tar") }
         return tool
+    }
+
+    /// Unpacks with 7-Zip. An encrypted archive gets a clear message, because 7-Zip would only ask for a password.
+    private func extractWithSevenZip(_ archive: URL, into folder: URL, log: inout [String]) async throws {
+        do {
+            try await execute("7-Zip", try requireSevenZip(),
+                              ["x", "-y", "-o" + folder.path, archive.path], log: &log)
+        } catch ConversionError.toolFailed(_, _, let message) where message.localizedCaseInsensitiveContains("password") {
+            throw ConversionError.unsupported("This archive is password-protected. Universal Converter cannot open password-protected archives yet.")
+        }
     }
 
     /// Runs a tool, logs the command, and throws if it fails.
@@ -577,17 +715,64 @@ public struct Converter: Sendable {
                                                  environment: environment, workingDirectory: cwd)
         guard result.exitCode == 0 else {
             throw ConversionError.toolFailed(tool: tool, exitCode: result.exitCode,
-                                             message: Self.lastLines(result.stderr + result.stdout))
+                                             message: Self.failureLines(result.stderr + result.stdout))
         }
     }
 
     // MARK: Helpers
+
+    static func isFolder(_ url: URL) -> Bool {
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
+    }
 
     func requireOutput(_ url: URL, tool: String) throws -> URL {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw ConversionError.outputMissing(tool: tool)
         }
         return url
+    }
+
+    /// Removes symbolic links from an unpacked archive and notes how many. Repacking would follow a link and
+    /// copy the file it points to, which may be anywhere on this Mac, into the result.
+    static func dropLinks(in folder: URL, notes: inout [String]) {
+        let count = removeLinks(in: folder)
+        guard count > 0 else { return }
+        notes.append(count == 1 ? "1 symbolic link was left out of the archive."
+                                : "\(count) symbolic links were left out of the archive.")
+    }
+
+    static func removeLinks(in folder: URL) -> Int {
+        guard let walker = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: [.isSymbolicLinkKey]) else {
+            return 0
+        }
+        var links: [URL] = []
+        for case let url as URL in walker where (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true {
+            links.append(url)
+        }
+        for link in links { try? FileManager.default.removeItem(at: link) }
+        return links.count
+    }
+
+    /// Deletes work folders that an earlier run left behind, for example when the app quit during a conversion.
+    /// Only folders older than `age` go, so a conversion in another window or app is never touched.
+    public static func removeStaleWork(olderThan age: TimeInterval = 24 * 60 * 60) {
+        let temp = FileManager.default.temporaryDirectory
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: temp.path) else { return }
+        for name in names where name.hasPrefix("fc-work-") || name.hasPrefix("fc-proc-") {
+            let url = temp.appendingPathComponent(name)
+            guard let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate,
+                  Date().timeIntervalSince(modified) > age else { continue }
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    /// The lines that say what went wrong. 7-Zip marks them with "ERROR:". Otherwise, the last lines of the output.
+    static func failureLines(_ text: String) -> String {
+        let errors = text.split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.hasPrefix("ERROR") }
+        return errors.isEmpty ? lastLines(text) : errors.prefix(3).joined(separator: "\n")
     }
 
     /// The last few meaningful lines of a tool's log, for error messages.
@@ -600,15 +785,41 @@ public struct Converter: Sendable {
     }
 }
 
+/// How the images of a multi-page PDF or PostScript file are delivered.
+public enum PageOutput: Sendable, Equatable {
+    /// A folder holding one image per page, named page-1.png, page-2.png and so on.
+    case folder
+    /// One ZIP file holding the same images.
+    case zip
+}
+
 /// Chooses output file names that never overwrite an existing file.
 public enum OutputNaming {
-    public static func uniqueURL(stem: String, ext: String, in directory: URL) -> URL {
-        var candidate = directory.appendingPathComponent("\(stem).\(ext)")
+    /// A nil extension gives a bare name, which is used for folders.
+    public static func uniqueURL(stem: String, ext: String?, in directory: URL) -> URL {
+        func name(_ base: String) -> String { ext.map { "\(base).\($0)" } ?? base }
+        var candidate = directory.appendingPathComponent(name(stem))
         var counter = 2
         while FileManager.default.fileExists(atPath: candidate.path) {
-            candidate = directory.appendingPathComponent("\(stem) (\(counter)).\(ext)")
+            candidate = directory.appendingPathComponent(name("\(stem) (\(counter))"))
             counter += 1
         }
         return candidate
+    }
+
+    /// Moves a result into place under a name nobody else has taken. Two conversions that finish together can
+    /// pick the same name, so a name that turns out to be taken is replaced by the next free one.
+    public static func move(_ source: URL, stem: String, ext: String?, into directory: URL) throws -> URL {
+        var lastError: Error?
+        for _ in 0..<100 {
+            let destination = uniqueURL(stem: stem, ext: ext, in: directory)
+            do {
+                try FileManager.default.moveItem(at: source, to: destination)
+                return destination
+            } catch let error as CocoaError where error.code == .fileWriteFileExists {
+                lastError = error
+            }
+        }
+        throw lastError ?? CocoaError(.fileWriteUnknown)
     }
 }

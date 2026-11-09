@@ -12,6 +12,7 @@ struct QueueRow: View {
     private var name: String { item.file.url.lastPathComponent }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
         HStack(alignment: .center, spacing: 14) {
             FileThumbnail(url: item.file.url)
 
@@ -39,6 +40,17 @@ struct QueueRow: View {
             }
             .layoutPriority(1)
         }
+        // A PDF being made smaller gets its compression choice on a line of its own, under the file.
+        if item.isCompressTarget && !item.isBusy {
+            CompressionControl(item: item)
+                .padding(.leading, 58)
+        }
+        // A picture gets its adjustments on a line under the file, with a button that opens the controls.
+        if item.isImageTarget && !item.isBusy {
+            ImageAdjustRow(item: item)
+                .padding(.leading, 58)
+        }
+        }
         .padding(.vertical, 8)
         .animation(.snappy, value: item.phase)
         .accessibilityElement(children: .contain)
@@ -57,7 +69,7 @@ struct QueueRow: View {
                 kind = description.prefix(1).uppercased() + description.dropFirst()
             }
         }
-        let size = ByteCountFormatter.string(fromByteCount: Preflight.fileSize(item.file.url), countStyle: .file)
+        let size = ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file)
         return "\(kind) · \(size)"
     }
 
@@ -98,6 +110,12 @@ struct QueueRow: View {
                 .font(.caption)
                 if let validation {
                     ValidationNote(result: validation)
+                }
+                ForEach(item.notes, id: \.self) { note in
+                    Text(note)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         case .failed(let message):
@@ -158,7 +176,7 @@ struct QueueRow: View {
             Button("Convert") { model.convert(item.id) }
                 .buttonStyle(.borderedProminent)
                 .buttonBorderShape(.capsule)
-                .disabled(item.selectedTarget == nil || item.isBlocked)
+                .disabled(item.selectedTarget == nil || item.isBlocked || item.needsCustomSize)
         }
     }
 }
@@ -328,5 +346,49 @@ struct LogPopover: View {
             .padding(14)
         }
         .frame(width: 440, height: min(CGFloat(lines.count) * 34 + 40, 280))
+    }
+}
+
+// MARK: - PDF compression
+
+/// The compression level for a PDF that is being made smaller. Custom reveals a field for the size.
+struct CompressionControl: View {
+    @Environment(AppModel.self) private var model
+    let item: AppModel.Item
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Picker("Compression", selection: choice) {
+                    ForEach(PDFCompressionChoice.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 420, alignment: .leading)
+                if item.compression == .custom {
+                    TextField("e.g. 2 MB", text: customSize)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 110)
+                        .accessibilityLabel("Target size")
+                }
+                Spacer(minLength: 0)
+            }
+            Text(item.needsCustomSize ? "Enter a size such as 2 MB or 800 KB." : item.compression.summary)
+                .font(.caption2)
+                .foregroundStyle(item.needsCustomSize ? Color.orange : Color.secondary)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .disabled(item.isBusy)
+    }
+
+    private var choice: Binding<PDFCompressionChoice> {
+        Binding(get: { item.compression }, set: { model.setCompression($0, for: item.id) })
+    }
+
+    private var customSize: Binding<String> {
+        Binding(get: { item.customSize }, set: { model.setCustomSize($0, for: item.id) })
     }
 }

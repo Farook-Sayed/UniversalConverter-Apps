@@ -33,13 +33,26 @@ public enum ProcessRunner {
         process.currentDirectoryURL = workingDirectory
         var env = ProcessInfo.processInfo.environment
         for (key, value) in environment { env[key] = value }
+        // An app opened from Finder gets a minimal PATH. Tools installed with Homebrew start helper programs
+        // such as node through PATH, so the usual install folders are added to the end.
+        let knownFolders = (env["PATH"] ?? "").split(separator: ":").map(String.init)
+        env["PATH"] = (knownFolders + ToolLocator.searchDirectories.filter { !knownFolders.contains($0) })
+            .joined(separator: ":")
         process.environment = env
+        // Nothing reads from the app's own input, so a tool that asks a question fails at once instead of waiting.
+        process.standardInput = FileHandle.nullDevice
         let outHandle = try FileHandle(forWritingTo: outURL)
         let errHandle = try FileHandle(forWritingTo: errURL)
         process.standardOutput = outHandle
         process.standardError = errHandle
 
         let box = ProcessBox(process)
+        // The time limit. It is cancelled when the program ends, so it does not keep the process object alive.
+        let watchdog = DispatchSource.makeTimerSource(queue: .global())
+        watchdog.schedule(deadline: .now() + timeout)
+        watchdog.setEventHandler { [weak box] in box?.terminateForTimeout() }
+        watchdog.resume()
+        defer { watchdog.cancel() }
         let exitCode: Int32 = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 process.terminationHandler = { finished in
@@ -51,9 +64,8 @@ public enum ProcessRunner {
                     continuation.resume(throwing: error)
                     return
                 }
-                DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
-                    box.terminateForTimeout()
-                }
+                // A cancel that arrived before the program started found nothing to stop, so check again now.
+                if Task.isCancelled { box.terminateIfRunning() }
             }
         } onCancel: {
             box.terminateIfRunning()

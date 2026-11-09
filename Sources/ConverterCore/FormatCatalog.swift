@@ -5,6 +5,8 @@ public enum Engine: String, Sendable, CaseIterable {
     case ffmpeg, imagemagick, libreoffice, pandoc, ollama, archiver, fonttools, poppler, ghostscript, assimp, calibre
     /// macOS's own tools. Used when the optional tool for a conversion is not installed.
     case builtin
+    /// ImageIO, the image framework in macOS. It reads HEIC and camera RAW and does the image adjustments.
+    case imageio
 }
 
 /// A format the user can convert a file into.
@@ -97,7 +99,20 @@ public enum FormatCatalog {
         "mpg": ["mpg", "mpeg"], "srt": ["srt"], "vtt": ["vtt"], "ass": ["ass", "ssa"], "ipynb": ["ipynb"],
         "ttf": ["ttf"], "otf": ["otf"], "woff": ["woff"], "woff2": ["woff2"],
         "zip": ["zip"], "7z": ["7z"], "gz": ["gz"], "targz": ["tar.gz", "tgz"], "tar": ["tar"], "rar": ["rar"],
+        "cr2": ["cr2"], "cr3": ["cr3"], "nef": ["nef", "nrw"], "arw": ["arw", "srf"], "dng": ["dng"],
+        "raf": ["raf"], "orf": ["orf"], "rw2": ["rw2"],
     ]
+
+    /// Camera RAW formats. Each is read as a picture, and ImageIO decodes the brands macOS supports.
+    public static let rawFormats: Set<String> = ["cr2", "cr3", "nef", "arw", "dng", "raf", "orf", "rw2"]
+
+    /// The camera RAW format with this extension, including its less common names such as .nrw.
+    public static func rawFormat(forExtension ext: String) -> String? {
+        rawFormats.first { extensions(forFormat: $0).contains(ext) }
+    }
+
+    /// Picture formats that the built-in image engine writes. Other picture formats go through ImageMagick.
+    public static let imageIOTargets: Set<String> = ["png", "jpg", "heic", "tiff", "gif", "bmp"]
 
     public static func extensions(forFormat id: String) -> [String] {
         if let known = formatExtensions[id] { return known }
@@ -140,6 +155,8 @@ public enum FormatCatalog {
         "odp": "OpenDocument presentation (.odp)",
         "zip": "ZIP archive", "7z": "7-Zip archive", "targz": "Compressed tar (.tar.gz)", "tar": "Tar archive (.tar)",
         "avif": "AVIF image", "heic": "HEIC image",
+        "cr2": "Canon RAW (CR2)", "cr3": "Canon RAW (CR3)", "nef": "Nikon RAW (NEF)", "arw": "Sony RAW (ARW)",
+        "dng": "Adobe DNG raw", "raf": "Fujifilm RAW (RAF)", "orf": "Olympus RAW (ORF)", "rw2": "Panasonic RAW (RW2)",
         "wmv": "Windows Media video", "flv": "Flash video", "3gp": "3GP mobile video",
         "srt": "SubRip subtitles (.srt)", "vtt": "WebVTT subtitles (.vtt)", "ass": "SubStation Alpha subtitles (.ass)",
         "ttf": "TrueType font (.ttf)", "otf": "OpenType font (.otf)", "woff": "WOFF web font", "woff2": "WOFF2 web font",
@@ -163,6 +180,8 @@ public enum FormatCatalog {
         case .video, .audio:
             return .ffmpeg
         case .image, .vector:
+            // macOS reads HEIC and camera RAW, and writes the common picture formats, with nothing to install.
+            if category == .image, imageIOTargets.contains(target) { return .imageio }
             return .imagemagick
         case .document:
             // PDF files: text and images come from Poppler, and documents from LibreOffice.
@@ -243,7 +262,7 @@ public enum FormatCatalog {
         case .unknown: candidates = []
         }
 
-        return candidates.compactMap { target -> OutputFormat? in
+        var results = candidates.compactMap { target -> OutputFormat? in
             guard target != formatID else { return nil }
             guard var engine = engine(formatID: formatID, category: category, target: target) else { return nil }
             if !available(engine) {
@@ -259,6 +278,18 @@ public enum FormatCatalog {
             }
             return OutputFormat(id: target, label: label, fileExtension: extensionFor(target), engine: engine)
         }
+        // A PDF can be made smaller. That is a conversion to PDF with a compression level.
+        if formatID == "pdf", category == .document, available(.ghostscript) {
+            results.append(OutputFormat(id: "pdf", label: "PDF, smaller file", fileExtension: "pdf",
+                                        engine: .ghostscript))
+        }
+        // A picture can stay in its format and still be resized, cropped or compressed. GIF is left out,
+        // because saving it again would keep only the first frame of an animation.
+        if category == .image, formatID != "gif", imageIOTargets.contains(formatID), available(.imageio) {
+            results.append(OutputFormat(id: formatID, label: "\(labels[formatID] ?? formatID.uppercased()), adjusted",
+                                        fileExtension: extensionFor(formatID), engine: .imageio))
+        }
+        return results
     }
 
     /// Pandoc's name for a format.

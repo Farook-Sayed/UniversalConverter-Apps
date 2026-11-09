@@ -11,6 +11,7 @@ enum SettingsKey {
     static let repairCode = "repairCode"
     static let revealWhenDone = "revealWhenDone"
     static let notifyWhenDone = "notifyWhenDone"
+    static let pagesAsZip = "pagesAsZip"
     static let settingsTab = "settingsTab"
 }
 
@@ -22,6 +23,7 @@ enum AppSettings {
             SettingsKey.repairCode: true,
             SettingsKey.revealWhenDone: false,
             SettingsKey.notifyWhenDone: true,
+            SettingsKey.pagesAsZip: false,
         ])
     }
 
@@ -31,6 +33,11 @@ enum AppSettings {
     }
 
     static var ollamaModel: String { CodeModels.selected }
+
+    /// Several PDF pages become a ZIP file when this is on, and a folder when it is off.
+    static var pageOutput: PageOutput {
+        UserDefaults.standard.bool(forKey: SettingsKey.pagesAsZip) ? .zip : .folder
+    }
 
     static var repairAttempts: Int {
         UserDefaults.standard.bool(forKey: SettingsKey.repairCode) ? 1 : 0
@@ -42,6 +49,33 @@ struct FeatureState: Identifiable {
     let feature: ToolFeature
     let installed: Bool
     var id: String { feature.id }
+}
+
+/// The compression levels offered in the queue for a PDF. Custom reveals a field for the size.
+enum PDFCompressionChoice: String, CaseIterable, Identifiable {
+    case original, low, medium, high, custom
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .original: return "Original"
+        case .low: return "Low"
+        case .medium: return "Medium"
+        case .high: return "High"
+        case .custom: return "Custom"
+        }
+    }
+
+    var summary: String {
+        switch self {
+        case .original: return "Keeps every image at full resolution. The file is only rewritten."
+        case .low: return "Light compression. Images stay near 300 dpi."
+        case .medium: return "Balanced. Images are kept near 150 dpi."
+        case .high: return "The smallest file. Images drop to about 72 dpi, so print quality falls."
+        case .custom: return "Type a size such as 2 MB or 800 KB. Image quality is lowered until the file fits."
+        }
+    }
 }
 
 /// The files in the window, and the conversions running on them.
@@ -69,6 +103,48 @@ final class AppModel {
         var log: [String] = []
         /// What the conversion is doing right now, such as "Translating part 2 of 5".
         var progress: String?
+        /// PDF compression, and the size typed for the custom level, such as "2 MB".
+        var compression: PDFCompressionChoice = .medium
+        var customSize = ""
+        /// Notes about the finished result, such as a size that could not be reached.
+        var notes: [String] = []
+        /// The adjustments for a picture: compression, size, crop, background and style.
+        var imageEdits = ImageEdits()
+        /// The size of the original, read once when the file is added.
+        var size: Int64 = 0
+
+        /// True when the chosen route makes a smaller PDF from a PDF.
+        var isCompressTarget: Bool {
+            guard let route = selectedTarget else { return false }
+            return route.engine == .ghostscript && route.target.id == "pdf" && file.formatID == "pdf"
+        }
+
+        /// The compression to run. Nil when a custom size is missing or not understood.
+        var compressionValue: PDFCompression? {
+            switch compression {
+            case .original: return .original
+            case .low: return .low
+            case .medium: return .medium
+            case .high: return .high
+            case .custom: return FileSize.parse(customSize).map { PDFCompression.custom(bytes: $0) }
+            }
+        }
+
+        /// True when the chosen route is an image conversion, which can take adjustments.
+        var isImageTarget: Bool {
+            guard let route = selectedTarget else { return false }
+            return route.engine == .imageio && file.category == .image
+        }
+
+        /// True when the chosen format can trade quality for size.
+        var isLossyImageTarget: Bool {
+            selectedTarget.map { ImageProcessing.lossyTargets.contains($0.id) } ?? false
+        }
+
+        /// True when a typed size or pixel count is missing or not understood.
+        var needsCustomSize: Bool {
+            (isCompressTarget && compressionValue == nil) || (isImageTarget && imageEdits.adjustments == nil)
+        }
 
         var selectedTarget: Route? { targets.first { $0.id == selectedTargetID } }
         var isBlocked: Bool { findings.contains { $0.severity == .blocking } }
@@ -93,23 +169,38 @@ final class AppModel {
 
     private var tasks: [UUID: Task<Void, Never>] = [:]
     private var waiting: [UUID] = []
+    /// How many formats each kind of file could become with every tool installed. It never changes while the app runs.
+    @ObservationIgnored private var allTargetCounts: [String: Int] = [:]
     static let maxConcurrent = 2
 
     init() {
         refreshTools()
+        // Work folders left by a run that quit in the middle of a conversion can be large, so clear the old ones.
+        Task.detached(priority: .background) { Converter.removeStaleWork() }
     }
 
     var hasItems: Bool { !items.isEmpty }
     var anyBusy: Bool { items.contains { $0.isBusy } }
     var convertingCount: Int { items.filter(\.isBusy).count }
+    /// True when Convert All has something to start. Files added during a conversion join the queue.
+    var hasConvertibleItems: Bool {
+        items.contains { $0.phase == .ready && $0.selectedTarget != nil && !$0.isBlocked && !$0.needsCustomSize }
+    }
     var missingFeatures: [FeatureState] { features.filter { !$0.installed } }
     var isInstalling: Bool { installingID != nil }
     private var runningCount: Int { items.filter { $0.phase == .converting }.count }
 
     /// Whether a conversion tool is installed. The menus offer only conversions that can run now.
+    /// Answers are remembered for the life of the closure, because one route search asks about each tool many times.
     private var usable: (Engine) -> Bool {
         let locator = ToolLocator()
-        return { locator.isAvailable($0) }
+        var known: [Engine: Bool] = [:]
+        return { engine in
+            if let answer = known[engine] { return answer }
+            let answer = locator.isAvailable(engine)
+            known[engine] = answer
+            return answer
+        }
     }
 
     // MARK: Files
@@ -127,7 +218,9 @@ final class AppModel {
             do {
                 let detected = try FileDetector().detect(url: url)
                 let targets = FormatCatalog.targets(for: detected, available: usable)
-                items.append(Item(file: detected, targets: targets, selectedTargetID: targets.first?.id))
+                var item = Item(file: detected, targets: targets, selectedTargetID: targets.first?.id)
+                item.size = Preflight.fileSize(url)
+                items.append(item)
             } catch {
                 problems.append(url.lastPathComponent)
             }
@@ -147,6 +240,8 @@ final class AppModel {
         for id in ids { tasks[id]?.cancel() }
         waiting.removeAll { ids.contains($0) }
         items.removeAll { ids.contains($0.id) }
+        // A removed file that was converting frees its place, so the next waiting file can start.
+        startWaiting()
     }
 
     func remove(_ id: UUID) {
@@ -162,7 +257,7 @@ final class AppModel {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         items[index].selectedTargetID = targetID
         items[index].phase = .ready
-        refreshFindings()
+        refreshFindings(only: id)
     }
 
     /// Where a file's result is saved: the Settings folder, or next to the original.
@@ -170,11 +265,12 @@ final class AppModel {
         AppSettings.outputFolder ?? url.deletingLastPathComponent()
     }
 
-    /// Recalculates the notes for every file. Called when files are added, formats change, or tools change.
-    func refreshFindings() {
+    /// Recalculates the notes for one file, or for every file. Called when files are added, formats change, or
+    /// tools change.
+    func refreshFindings(only id: UUID? = nil) {
         let python = Converter.fontPython(tools: ToolLocator())
         let locator = ToolLocator()
-        for index in items.indices {
+        for index in items.indices where id == nil || items[index].id == id {
             let file = items[index].file
             var findings: [Finding] = []
             if let target = items[index].selectedTarget {
@@ -183,7 +279,7 @@ final class AppModel {
                                               tools: locator, fontPython: python)
             }
             // Formats that would appear if the optional tools were installed.
-            let everything = FormatCatalog.targets(for: file).count
+            let everything = allTargetCount(for: file)
             let hidden = everything - items[index].targets.count
             if everything == 0 {
                 findings.append(Finding(severity: .info, message: "Universal Converter cannot convert this kind of file yet."))
@@ -194,6 +290,14 @@ final class AppModel {
             }
             items[index].findings = findings
         }
+    }
+
+    private func allTargetCount(for file: DetectedFile) -> Int {
+        let key = "\(file.category.rawValue)/\(file.formatID)"
+        if let known = allTargetCounts[key] { return known }
+        let count = FormatCatalog.targets(for: file).count
+        allTargetCounts[key] = count
+        return count
     }
 
     /// Recalculates the format menus, for example after a tool is installed. A chosen format is kept if it still exists.
@@ -214,11 +318,13 @@ final class AppModel {
     func convert(_ id: UUID) {
         guard let index = items.firstIndex(where: { $0.id == id }),
               !items[index].isBusy,
-              items[index].selectedTarget != nil else { return }
-        refreshFindings()
+              items[index].selectedTarget != nil,
+              !items[index].needsCustomSize else { return }
+        refreshFindings(only: id)
         guard !items[index].isBlocked else { return }
         items[index].phase = .queued
         items[index].log = []
+        items[index].notes = []
         waiting.append(id)
         startWaiting()
     }
@@ -236,9 +342,12 @@ final class AppModel {
         let file = items[index].file
         items[index].phase = .converting
         let request = ConversionRequest(input: file, route: target,
-                                        outputDirectory: outputDirectory(for: file.url))
+                                        outputDirectory: outputDirectory(for: file.url),
+                                        pdfCompression: items[index].compressionValue ?? .medium,
+                                        imageAdjustments: items[index].imageEdits.adjustments ?? .unchanged)
         let converter = Converter(ollama: OllamaClient(model: AppSettings.ollamaModel),
                                   repairAttempts: AppSettings.repairAttempts,
+                                  pageOutput: AppSettings.pageOutput,
                                   progress: { [weak self] text in
                                       Task { @MainActor in self?.setProgress(id, text) }
                                   })
@@ -246,7 +355,8 @@ final class AppModel {
         tasks[id] = Task { [weak self] in
             do {
                 let result = try await converter.convert(request)
-                self?.finish(id, phase: .finished(result.outputURL, result.validation), log: result.log)
+                self?.finish(id, phase: .finished(result.outputURL, result.validation), log: result.log,
+                             notes: result.notes)
             } catch {
                 if Task.isCancelled {
                     self?.finish(id, phase: .cancelled, log: [])
@@ -264,6 +374,44 @@ final class AppModel {
         }
     }
 
+    /// Changes the adjustments of one picture. Nothing changes while the file is converting.
+    func editImage(_ id: UUID, _ change: (inout ImageEdits) -> Void) {
+        guard let index = items.firstIndex(where: { $0.id == id }), !items[index].isBusy else { return }
+        change(&items[index].imageEdits)
+        reopen(index)
+    }
+
+    /// A changed setting means the last result is out of date, so the row offers Convert again.
+    private func reopen(_ index: Int) {
+        switch items[index].phase {
+        case .finished, .failed, .cancelled:
+            items[index].phase = .ready
+            items[index].notes = []
+        case .ready, .queued, .converting:
+            break
+        }
+    }
+
+    /// Chooses how hard a PDF is compressed. Nothing changes while the file is converting.
+    func setCompression(_ choice: PDFCompressionChoice, for id: UUID) {
+        guard let index = items.firstIndex(where: { $0.id == id }), !items[index].isBusy else { return }
+        items[index].compression = choice
+        reopen(index)
+    }
+
+    /// Sets the size for the custom compression level, as typed.
+    func setCustomSize(_ text: String, for id: UUID) {
+        guard let index = items.firstIndex(where: { $0.id == id }), !items[index].isBusy else { return }
+        items[index].customSize = text
+        reopen(index)
+    }
+
+    /// Stops every running conversion. Used when the app quits, so no tool keeps running without it.
+    func cancelAll() {
+        waiting.removeAll()
+        for task in tasks.values { task.cancel() }
+    }
+
     func cancel(_ id: UUID) {
         if waiting.contains(id) {
             waiting.removeAll { $0 == id }
@@ -278,19 +426,22 @@ final class AppModel {
         items[index].progress = text
     }
 
-    private func finish(_ id: UUID, phase: Phase, log: [String]) {
+    private func finish(_ id: UUID, phase: Phase, log: [String], notes: [String] = []) {
         tasks[id] = nil
+        // A place is free whether or not the file is still in the list. Without this, removing a file that was
+        // converting would leave the files waiting behind it stuck.
+        defer { startWaiting() }
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         items[index].phase = phase
         items[index].progress = nil
         items[index].log = log
+        items[index].notes = notes
         if case .finished(let url, _) = phase {
             if UserDefaults.standard.bool(forKey: SettingsKey.revealWhenDone) {
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             }
             notifyIfInBackground(title: "Saved \(url.lastPathComponent)")
         }
-        startWaiting()
     }
 
     // MARK: Tools
@@ -385,20 +536,20 @@ final class AppModel {
 
     /// Fills the window with sample files in several states. Only used by the snapshot tool.
     func loadDemo(folder: URL) {
-        let names = ["documents/sample.docx", "video/sample.mp4", "images/sample.png", "code/hello.py",
-                     "video/silent.mp4", "audio/sample.mp3", "markup/sample.md"]
+        let names = ["documents/sample.pdf", "documents/sample.docx", "video/sample.mp4", "images/sample.png",
+                     "code/hello.py", "video/silent.mp4", "audio/sample.mp3", "markup/sample.md"]
         add(names.map { folder.appendingPathComponent($0) })
         func choose(_ index: Int, _ id: String) {
             if items.indices.contains(index) { select(id, for: items[index].id) }
         }
-        choose(0, "pdf"); choose(1, "gif"); choose(2, "jpg"); choose(3, "java")
-        choose(4, "mp3"); choose(6, "pdf")
-        if items.count > 3 {
-            items[3].phase = .finished(folder.appendingPathComponent("code/hello.py"), .passed(checker: "javac"))
-        }
+        choose(0, "pdf"); choose(2, "gif"); choose(3, "jpg"); choose(4, "java")
+        choose(5, "mp3"); choose(7, "pdf")
         if items.count > 4 {
-            items[4].phase = .failed("silent.mp4 has no sound track, so there is no audio to save as MP3 audio.")
+            items[4].phase = .finished(folder.appendingPathComponent("code/hello.py"), .passed(checker: "javac"))
         }
-        if items.count > 5 { items[5].phase = .converting }
+        if items.count > 5 {
+            items[5].phase = .failed("silent.mp4 has no sound track, so there is no audio to save as MP3 audio.")
+        }
+        if items.count > 6 { items[6].phase = .converting }
     }
 }

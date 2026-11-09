@@ -19,10 +19,11 @@ final class RoutingTests: XCTestCase {
         XCTAssertNil(target("mp4", in: targets), "a file is never offered its own format")
     }
 
-    func testRasterImagesUseImageMagick() {
+    func testRasterImagesUseTheBuiltInImageEngineExceptForPDFAndWebP() {
         let targets = FormatCatalog.targets(for: detected("png", .image, ext: "png"))
-        XCTAssertEqual(target("jpg", in: targets)?.engine, .imagemagick)
+        XCTAssertEqual(target("jpg", in: targets)?.engine, .imageio)
         XCTAssertEqual(target("pdf", in: targets)?.engine, .imagemagick)
+        XCTAssertEqual(target("webp", in: targets)?.engine, .imagemagick)
     }
 
     func testSVGUsesImageMagick() {
@@ -124,7 +125,8 @@ final class RoutingTests: XCTestCase {
         XCTAssertEqual(target("txt", in: targets)?.engine, .poppler)
         XCTAssertEqual(target("png", in: targets)?.engine, .poppler)
         XCTAssertEqual(target("docx", in: targets)?.engine, .libreoffice)
-        XCTAssertNil(target("pdf", in: targets))
+        // A smaller PDF is offered too. It is made by Ghostscript, not by Poppler.
+        XCTAssertEqual(target("pdf", in: targets)?.engine, .ghostscript)
     }
 
     func testPostScriptConvertsWithGhostscript() {

@@ -51,10 +51,10 @@ The first run may ask you to confirm opening an app from an unidentified develop
 - **Several files:** drop as many as you like. Each file has its own row and its own format. **Convert All** (⇧⌘R) converts every file that has a format chosen.
 - **Warnings:** each row can show a note, a caution or a blocked message before you convert. A blocked file cannot be converted until the problem is fixed. For example, a missing tool, an empty file, or a folder the app cannot write to.
 - **Cancel:** click **Cancel** on a running conversion. The tool is stopped straight away.
-- **Settings** (⌘,): choose a folder for results, change the Ollama model, turn the syntax-check repair on or off, and check the installed tools.
+- **Settings** (⌘,): choose a folder for results, choose whether several PDF pages are saved as a folder or a ZIP file, change the Ollama model, turn the syntax-check repair on or off, and check the installed tools.
 - **Open With:** you can right-click a file in Finder and choose **Open With → Universal Converter**, or drop files on the Dock icon.
 - **Notifications:** when a file finishes while the app is in the background, you get a notification. Turn this off in Settings.
-- **Shortcuts and Siri:** the **Convert File** action takes a file and a format, and returns the converted file. It appears in Shortcuts once the app is built as an Xcode project (see the note in the project's plan).
+- **Shortcuts and Siri:** the **Convert File** action takes a file and a format, and returns the converted file. It always returns one file, so several PDF pages come back as a ZIP file.
 
 ## 4b. Conversions in several steps
 
@@ -65,6 +65,21 @@ Some conversions need two or three tools in a row. For example, Markdown to PDF 
 - The log under **Details** shows each step as it runs.
 - A chain never ends in a format of the same kind as the file you started with. For example, a font is not converted to another font through a web font.
 
+## 4c. Making files smaller and adjusting pictures
+
+**PDF:** choose **PDF, smaller file** in the format menu. Original, Low, Medium and High set how far images are reduced. Custom takes a size such as `2 MB`, for a website that sets a limit. Text-only PDFs have little to compress, so the original is kept if the result would not be smaller.
+
+**Pictures:** to keep a picture in its format, choose the entry that ends in **adjusted**, such as **JPEG image, adjusted**. Under each picture, **Adjust…** opens the controls. They apply when the result is PNG, JPEG, HEIC, TIFF, GIF or BMP.
+
+- **Compression:** for JPEG and HEIC, Low keeps the most detail and High makes the smallest file. Custom takes a size such as `500 KB`. The app lowers the quality until the file fits, then makes the picture smaller in pixels if it still does not. PNG, TIFF, GIF and BMP keep every detail, so for these Custom only makes the picture smaller in pixels.
+- **Size:** 75%, 50%, 25% or a longest side in pixels. A picture is never made larger.
+- **Crop:** cuts from the centre to a square, 4:3, 16:9 or 3:4 shape. There is no crop box to drag yet.
+- **Remove background:** keeps the main subject and makes the rest transparent. PNG, HEIC, TIFF and GIF stay transparent, and JPEG and BMP get a white background. It works best with a clear subject.
+- **Sketch:** a pencil drawing of the picture on white paper.
+- **Keep camera and location details:** on by default. Turn it off before sharing a picture publicly, because these details can include where the photo was taken.
+
+The original is never changed. If nothing would improve, the result is an exact copy of the original and the row says so. If you change a setting after converting, the row offers **Convert** again.
+
 ## 5. What converts to what
 
 | From | To |
@@ -73,13 +88,13 @@ Some conversions need two or three tools in a row. For example, Markdown to PDF 
 | Subtitles (SRT, VTT, ASS) | The other two subtitle formats |
 | Fonts (TTF, OTF, WOFF, WOFF2) | TTF and OTF are converted to WOFF or WOFF2, and back. A TrueType font cannot be saved as OTF, and an OpenType font cannot be saved as TTF. The app says so. |
 | Jupyter notebooks (IPYNB) | DOCX, HTML, Markdown, TXT, RTF, EPUB |
-| PDF | Text (TXT), the first page as PNG or JPEG, Word (DOCX), OpenDocument text (ODT), HTML. Layouts from PDF are approximate. |
-| PostScript and EPS | PDF, the first page as PNG or JPEG |
+| PDF | A smaller PDF (Original, Low, Medium, High, or a size you type), text (TXT), every page as PNG or JPEG, one image per page, Word (DOCX), OpenDocument text (ODT), HTML. Layouts from PDF are approximate. |
+| PostScript and EPS | PDF, every page as PNG or JPEG, one image per page |
 | 3D models (OBJ, STL, PLY, COLLADA, glTF, GLB) | The other 3D formats |
 | E-books (MOBI, AZW3, FB2) | EPUB, MOBI, AZW3, FB2, PDF, DOCX, TXT, HTML |
 | EPUB | MOBI, AZW3, FB2 and PDF, in addition to the document formats |
 | Audio (MP3, WAV, FLAC, M4A, OGG) | Any other audio format |
-| Images (PNG, JPEG, GIF, WebP, BMP, TIFF, AVIF, HEIC) | PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, HEIC, PDF |
+| Images (PNG, JPEG, GIF, WebP, BMP, TIFF, AVIF, HEIC) and camera RAW (CR2, CR3, NEF, ARW, DNG, RAF, ORF, RW2) | PNG, JPEG, HEIC, GIF, BMP and TIFF work with nothing to install. WebP, AVIF and PDF need ImageMagick. |
 | SVG | PNG, JPEG, PDF |
 | Word (DOCX, DOC, ODT, RTF) | PDF, the other word formats, HTML, TXT. DOCX also to Markdown |
 | Spreadsheets (XLSX, XLS, ODS, CSV) | PDF, XLSX, ODS, CSV |
@@ -88,7 +103,7 @@ Some conversions need two or three tools in a row. For example, Markdown to PDF 
 | ZIP, 7z, tar.gz, tar | The other archive formats |
 | Code (Python, Java, C, C++, Rust, JavaScript, TypeScript, Ruby, Go, C#) | Any other language, translated by the local model |
 
-**Not supported yet:** PDF as input, Markdown to PDF, and plain `.gz` files.
+**Not supported yet:** plain `.gz` files, and RAR as an output.
 
 ## 6. The code checks
 
@@ -147,6 +162,6 @@ The matrix takes several minutes. Its report is `build/matrix-report.txt`.
 
 - The app works only on the Mac it was built on. Sharing it with other people needs signing and notarization.
 - Converting large video or images can take a lot of memory. The figures in the requirements are from small test files.
-- One file at a time. Dropping several files uses only the first.
-- No progress bar or cancel button yet. Long conversions show a spinner.
-- The output folder is always the one the original file is in.
+- There is no percentage progress bar. Long conversions show a spinner, and some say which step or part they are on.
+- Two conversions run at a time. Other files wait in the queue.
+- Camera RAW depends on macOS supporting the camera. It is tested with a generated DNG file, not with files from each brand.

@@ -16,6 +16,13 @@ public struct RouteStep: Sendable, Hashable {
     }
 }
 
+extension RouteStep {
+    /// PDF or PostScript pages saved as images. These can be several files, so this step is only ever the last one.
+    public var producesPageImages: Bool {
+        (output.id == "png" || output.id == "jpg") && (output.engine == .poppler || output.engine == .ghostscript)
+    }
+}
+
 /// The way to reach a target format: one conversion, or several in a row.
 ///
 /// For example, Markdown to PDF is two steps: Markdown to HTML with Pandoc, then HTML to PDF with LibreOffice.
@@ -82,8 +89,9 @@ extension FormatCatalog {
         var frontier: [Route] = []
 
         // Step one: the direct conversions, which are always the shortest route.
+        // A PDF may become a smaller PDF, so the source's own format is allowed here.
         for output in directTargets(formatID: formatID, category: sourceCategory, available: available)
-        where !visited.contains(output.id) {
+        where !visited.contains(output.id) || output.id == formatID {
             let step = RouteStep(inputFormatID: formatID, inputCategory: sourceCategory, output: output,
                                  outputCategory: outputCategory(ofFormat: output.id))
             let route = Route(steps: [step])
@@ -103,6 +111,8 @@ extension FormatCatalog {
             for route in frontier {
                 let node = route.steps[route.steps.count - 1]
                 guard node.outputCategory != .code else { continue }
+                // Several page files cannot be the input of another step.
+                guard !node.producesPageImages else { continue }
                 for output in directTargets(formatID: node.output.id, category: node.outputCategory,
                                             available: available) {
                     guard output.engine != .ollama, !visited.contains(output.id) else { continue }

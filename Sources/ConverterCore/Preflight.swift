@@ -71,7 +71,9 @@ public enum Preflight {
             result.append(Finding(severity: .info,
                                   message: "\(checker) is not installed, so the translated code will not be syntax-checked."))
         }
-        return result
+        // Two steps can need the same tool, and each would add the same message.
+        var seen = Set<String>()
+        return result.filter { seen.insert($0.message).inserted }
     }
 
     // MARK: Rules
@@ -85,7 +87,7 @@ public enum Preflight {
             return "Reflowable e-books lose their layout when saved as PDF or plain text."
         }
         if (sourceID == "pdf" || sourceCategory == .postscript) && (targetID == "png" || targetID == "jpg") {
-            return "Only the first page is saved as an image."
+            return "Each page is saved as its own image. Several pages go into a folder, or a ZIP file if Settings → General says so."
         }
         if targetID == "gif" && sourceCategory == .video {
             return "GIF has no sound and only 256 colours, so expect lower quality."
@@ -141,7 +143,7 @@ public enum Preflight {
         case .archiver:
             let needsSevenZip = target.id == "zip" || target.id == "7z"
                 || ["zip", "7z", "rar"].contains(file.formatID)
-            return needsSevenZip && tools.locate(["7z", "7zz"]) == nil ? Finding(severity: .blocking, message: "7-Zip is not installed. Install it with: brew install p7zip") : nil
+            return needsSevenZip && tools.locate(["7zz", "7z"]) == nil ? Finding(severity: .blocking, message: "7-Zip is not installed. Install it with: brew install sevenzip") : nil
         case .ollama:
             return tools.locate(["ollama"]) == nil ? Finding(severity: .blocking, message: "Ollama is not installed. Install it with: brew install ollama") : nil
         case .poppler:
@@ -150,7 +152,7 @@ public enum Preflight {
         case .ghostscript:
             return tools.locate(["gs"]) == nil
                 ? Finding(severity: .blocking, message: "Ghostscript is not installed. Install it with: brew install ghostscript") : nil
-        case .builtin:
+        case .builtin, .imageio:
             return nil
         case .calibre:
             return tools.locate(["ebook-convert"]) == nil
