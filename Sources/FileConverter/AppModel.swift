@@ -102,7 +102,7 @@ final class AppModel {
         var phase: Phase = .ready
         var log: [String] = []
         /// What the conversion is doing right now, such as "Translating part 2 of 5".
-        var progress: String?
+        var progress: ConversionProgress?
         /// PDF compression, and the size typed for the custom level, such as "2 MB".
         var compression: PDFCompressionChoice = .medium
         var customSize = ""
@@ -133,7 +133,8 @@ final class AppModel {
         /// True when the chosen route is an image conversion, which can take adjustments.
         var isImageTarget: Bool {
             guard let route = selectedTarget else { return false }
-            return route.engine == .imageio && file.category == .image
+            // Text read from a picture has no size, quality or crop settings, so it gets no Adjust button.
+            return route.engine == .imageio && file.category == .image && route.target.id != "txt"
         }
 
         /// True when the chosen format can trade quality for size.
@@ -348,8 +349,8 @@ final class AppModel {
         let converter = Converter(ollama: OllamaClient(model: AppSettings.ollamaModel),
                                   repairAttempts: AppSettings.repairAttempts,
                                   pageOutput: AppSettings.pageOutput,
-                                  progress: { [weak self] text in
-                                      Task { @MainActor in self?.setProgress(id, text) }
+                                  progress: { [weak self] update in
+                                      Task { @MainActor in self?.setProgress(id, update) }
                                   })
 
         tasks[id] = Task { [weak self] in
@@ -421,9 +422,9 @@ final class AppModel {
         }
     }
 
-    private func setProgress(_ id: UUID, _ text: String) {
+    private func setProgress(_ id: UUID, _ update: ConversionProgress) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
-        items[index].progress = text
+        items[index].progress = update
     }
 
     private func finish(_ id: UUID, phase: Phase, log: [String], notes: [String] = []) {
@@ -549,6 +550,10 @@ final class AppModel {
         }
         if items.count > 5 {
             items[5].phase = .failed("silent.mp4 has no sound track, so there is no audio to save as MP3 audio.")
+        }
+        if items.count > 2 {
+            items[2].phase = .converting
+            items[2].progress = ConversionProgress("Converting", fraction: 0.45)
         }
         if items.count > 6 { items[6].phase = .converting }
     }

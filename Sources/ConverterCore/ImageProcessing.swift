@@ -64,6 +64,17 @@ public enum ImageCrop: String, CaseIterable, Sendable {
         }
     }
 
+    /// The largest rectangle of this shape, as fractions of a picture with the given width-to-height ratio.
+    public func fractionRect(aspect: Double) -> CGRect? {
+        guard let ratio, aspect > 0 else { return nil }
+        if aspect > ratio {
+            let width = ratio / aspect
+            return CGRect(x: (1 - width) / 2, y: 0, width: width, height: 1)
+        }
+        let height = aspect / ratio
+        return CGRect(x: 0, y: (1 - height) / 2, width: 1, height: height)
+    }
+
     /// The largest rectangle of this shape, centred in a picture of the given size, in pixels.
     public func rect(width: Int, height: Int) -> CGRect {
         let full = CGRect(x: 0, y: 0, width: width, height: height)
@@ -87,17 +98,20 @@ public struct ImageAdjustments: Sendable, Equatable {
     public var compression: ImageCompression
     public var resize: ImageResize
     public var crop: ImageCrop
+    /// A crop the user drew, as fractions of the picture (0...1). When set, it replaces the crop shape.
+    public var cropRect: CGRect?
     public var removeBackground: Bool
     public var effect: ImageEffect
     /// Keep the camera, date and location details. Turn off before sharing a picture publicly.
     public var keepMetadata: Bool
 
     public init(compression: ImageCompression = .original, resize: ImageResize = .original,
-                crop: ImageCrop = .off, removeBackground: Bool = false, effect: ImageEffect = .off,
-                keepMetadata: Bool = true) {
+                crop: ImageCrop = .off, cropRect: CGRect? = nil, removeBackground: Bool = false,
+                effect: ImageEffect = .off, keepMetadata: Bool = true) {
         self.compression = compression
         self.resize = resize
         self.crop = crop
+        self.cropRect = cropRect
         self.removeBackground = removeBackground
         self.effect = effect
         self.keepMetadata = keepMetadata
@@ -107,7 +121,7 @@ public struct ImageAdjustments: Sendable, Equatable {
     public static let unchanged = ImageAdjustments()
 
     public var changesPicture: Bool {
-        resize != .original || crop != .off || removeBackground || effect != .off
+        resize != .original || crop != .off || cropRect != nil || removeBackground || effect != .off
     }
 }
 
@@ -135,6 +149,29 @@ public enum ImageProcessing {
         case "bmp": return .bmp
         default: return nil
         }
+    }
+
+    /// A small copy of the picture, rotated, for the crop editor.
+    public static func preview(of url: URL, maxSide: Int) -> CGImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxSide,
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, CGImageSourceGetPrimaryImageIndex(source),
+                                                   options as CFDictionary)
+    }
+
+    /// Crops to a rectangle given as fractions of the picture, so the same rectangle works at any size.
+    public static func crop(_ image: CGImage, to fractions: CGRect) -> CGImage? {
+        let width = Double(image.width), height = Double(image.height)
+        let whole = CGRect(x: 0, y: 0, width: width, height: height)
+        let rect = CGRect(x: (fractions.minX * width).rounded(), y: (fractions.minY * height).rounded(),
+                          width: (fractions.width * width).rounded(), height: (fractions.height * height).rounded())
+            .intersection(whole)
+        guard rect.width >= 1, rect.height >= 1 else { return nil }
+        return image.cropping(to: rect)
     }
 
     // MARK: Reading
@@ -313,7 +350,10 @@ public enum ImageProcessing {
         }
 
         try Task.checkCancellation()
-        if adjustments.crop != .off {
+        if let rect = adjustments.cropRect {
+            guard let cropped = crop(image, to: rect) else { throw failed("cropped") }
+            image = cropped
+        } else if adjustments.crop != .off {
             guard let cropped = crop(image, to: adjustments.crop) else { throw failed("cropped") }
             image = cropped
         }
@@ -410,6 +450,23 @@ public enum ImageProcessing {
 }
 
 extension Converter {
+    /// Text read from a picture with Vision. This is the "Text (OCR)" format.
+    func runImageText(input: DetectedFile, workDir: URL, log: inout [String], notes: inout [String]) async throws -> URL {
+        let output = workDir.appendingPathComponent("out.txt")
+        log.append("text read from \(input.url.lastPathComponent) with Vision")
+        let url = input.url
+        let text = try await Self.offThread {
+            try TextRecognition.recognize(try ImageProcessing.load(url))
+        }
+        notes.append(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "No text was found in this picture."
+            : "This text was read from the picture. Check it for mistakes.")
+        try text.write(to: output, atomically: true, encoding: .utf8)
+        return output
+    }
+}
+
+extension Converter {
     /// One image conversion with the frameworks that ship with macOS. The work runs off the caller's thread, and
     /// cancelling the conversion cancels it. When a picture stays in its own format and nothing would improve,
     /// the original is kept, because saving a JPEG again only loses quality.
@@ -436,13 +493,8 @@ extension Converter {
 
         let url = input.url
         let targetID = target.id
-        let work = Task.detached(priority: .userInitiated) {
+        let rendered = try await Self.offThread {
             try ImageProcessing.render(from: url, targetID: targetID, adjustments: adjustments)
-        }
-        let rendered = try await withTaskCancellationHandler {
-            try await work.value
-        } onCancel: {
-            work.cancel()
         }
         notes.append(contentsOf: rendered.notes)
         if onlyCompressing, rendered.data.count >= originalSize {

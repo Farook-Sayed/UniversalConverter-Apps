@@ -101,8 +101,9 @@ extension CodePrompt {
     /// The instruction for one part of a longer file. The model translates only that part.
     public static func part(source: CodeLanguage, target: CodeLanguage, code: String, className: String,
                             index: Int, count: Int) -> String {
+        // Java needs one class around everything. Each part is only members, and they are joined into the class later.
         let classRule = target.id == "java"
-            ? "If this part declares the public class, it must be named \(className)."
+            ? "Write only the members of the class: its fields and methods. Do not write the class declaration or the package line. Put any import lines the members need first."
             : ""
         return """
         You are a source-code translator. This is part \(index) of \(count) of a longer \(source.label) program. \
@@ -111,6 +112,18 @@ extension CodePrompt {
         this part needs. Do not add code that is not in this part. \(classRule)
         Return ONLY the \(target.label) source code. No explanations and no markdown code fences.
 
+        \(source.label) source (part \(index) of \(count)):
+        \(code)
+        """
+    }
+
+    /// The instruction for one group of members from a Java class. The class declaration is not in the part.
+    public static func members(source: CodeLanguage, target: CodeLanguage, code: String, className: String,
+                               imports: String = "", index: Int, count: Int) -> String {
+        let context = imports.trimmingCharacters(in: .whitespacesAndNewlines)
+        return """
+        You are a source-code translator. The code below is part \(index) of \(count) of the body of a \(source.label) class named \(className): its fields and methods, without the class declaration. Translate ONLY these members into \(target.label), as top-level functions and variables with no indentation and no surrounding class. Keep every name exactly as in the source, because other parts use the same names. Return ONLY the \(target.label) source code. No explanations and no markdown code fences.
+        \(context.isEmpty ? "" : "\nThe source file starts with these lines. Do not translate them, they only show which types the code uses:\n\(context)\n")
         \(source.label) source (part \(index) of \(count)):
         \(code)
         """

@@ -73,12 +73,20 @@ Some conversions need two or three tools in a row. For example, Markdown to PDF 
 
 - **Compression:** for JPEG and HEIC, Low keeps the most detail and High makes the smallest file. Custom takes a size such as `500 KB`. The app lowers the quality until the file fits, then makes the picture smaller in pixels if it still does not. PNG, TIFF, GIF and BMP keep every detail, so for these Custom only makes the picture smaller in pixels.
 - **Size:** 75%, 50%, 25% or a longest side in pixels. A picture is never made larger.
-- **Crop:** cuts from the centre to a square, 4:3, 16:9 or 3:4 shape. There is no crop box to drag yet.
+- **Crop:** drag the box, or one of its corners, over the part to keep. Or choose a shape, such as square, 4:3, 16:9 or 3:4, to crop from the centre. **Reset crop** removes the crop.
 - **Remove background:** keeps the main subject and makes the rest transparent. PNG, HEIC, TIFF and GIF stay transparent, and JPEG and BMP get a white background. It works best with a clear subject.
 - **Sketch:** a pencil drawing of the picture on white paper.
 - **Keep camera and location details:** on by default. Turn it off before sharing a picture publicly, because these details can include where the photo was taken.
 
 The original is never changed. If nothing would improve, the result is an exact copy of the original and the row says so. If you change a setting after converting, the row offers **Convert** again.
+
+## 4d. Reading text from pictures and scans
+
+**Pictures:** choose **Text (OCR)** in the format menu. The app reads the text with Vision, which comes with macOS, so there is nothing to install. The result is a TXT file.
+
+**Scanned PDFs:** choose **Plain text** for the PDF. Pages with a text layer give that text. Pages with no text layer are read as pictures, and the row tells you so. This needs Poppler, because Poppler reads the text layer.
+
+Check the result for mistakes. Printed text reads best. Handwriting and unusual fonts read less well. Columns are kept together, but a table is read column by column, so its rows do not stay lined up.
 
 ## 5. What converts to what
 
@@ -94,13 +102,13 @@ The original is never changed. If nothing would improve, the result is an exact 
 | E-books (MOBI, AZW3, FB2) | EPUB, MOBI, AZW3, FB2, PDF, DOCX, TXT, HTML |
 | EPUB | MOBI, AZW3, FB2 and PDF, in addition to the document formats |
 | Audio (MP3, WAV, FLAC, M4A, OGG) | Any other audio format |
-| Images (PNG, JPEG, GIF, WebP, BMP, TIFF, AVIF, HEIC) and camera RAW (CR2, CR3, NEF, ARW, DNG, RAF, ORF, RW2) | PNG, JPEG, HEIC, GIF, BMP and TIFF work with nothing to install. WebP, AVIF and PDF need ImageMagick. |
+| Images (PNG, JPEG, GIF, WebP, BMP, TIFF, AVIF, HEIC) and camera RAW (CR2, CR3, NEF, ARW, DNG, RAF, ORF, RW2) | PNG, JPEG, HEIC, GIF, BMP, TIFF and text (OCR) work with nothing to install. WebP, AVIF and PDF need ImageMagick. |
 | SVG | PNG, JPEG, PDF |
 | Word (DOCX, DOC, ODT, RTF) | PDF, the other word formats, HTML, TXT. DOCX also to Markdown |
 | Spreadsheets (XLSX, XLS, ODS, CSV) | PDF, XLSX, ODS, CSV |
 | Presentations (PPTX, PPT, ODP) | PDF, PPTX, ODP |
 | Markdown, HTML, TXT, EPUB | DOCX, HTML, RTF, TXT, Markdown, EPUB. HTML also to PDF |
-| ZIP, 7z, tar.gz, tar | The other archive formats |
+| ZIP, 7z, RAR, tar.gz, tar | The other archive formats, except RAR |
 | Code (Python, Java, C, C++, Rust, JavaScript, TypeScript, Ruby, Go, C#) | Any other language, translated by the local model |
 
 **Not supported yet:** plain `.gz` files, and RAR as an output.
@@ -162,6 +170,6 @@ The matrix takes several minutes. Its report is `build/matrix-report.txt`.
 
 - The app works only on the Mac it was built on. Sharing it with other people needs signing and notarization.
 - Converting large video or images can take a lot of memory. The figures in the requirements are from small test files.
-- There is no percentage progress bar. Long conversions show a spinner, and some say which step or part they are on.
+- Progress shows a percentage for videos, audio, scanned PDFs, translated code parts and custom PDF sizes. A chain of several steps also shows a percentage, in which each finished step counts. Other conversions show a spinner.
 - Two conversions run at a time. Other files wait in the queue.
 - Camera RAW depends on macOS supporting the camera. It is tested with a generated DNG file, not with files from each brand.

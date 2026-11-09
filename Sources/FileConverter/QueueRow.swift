@@ -89,14 +89,22 @@ struct QueueRow: View {
             .foregroundStyle(.secondary)
         case .converting:
             HStack(spacing: 6) {
-                ProgressView()
-                    .controlSize(.small)
-                Text(item.progress ?? (item.selectedTarget?.engine == .ollama
+                if let fraction = item.progress?.fraction {
+                    // A measured job shows a bar and its percentage. Other jobs show a spinner.
+                    ProgressView(value: fraction)
+                        .frame(width: 150)
+                    Text(fraction.formatted(.percent.precision(.fractionLength(0))))
+                        .monospacedDigit()
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Text(item.progress?.message ?? (item.selectedTarget?.engine == .ollama
                      ? "Translating with the local model…"
                      : "Converting…"))
-                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .font(.caption)
             .accessibilityElement(children: .combine)
         case .finished(let url, let validation):
             VStack(alignment: .leading, spacing: 3) {

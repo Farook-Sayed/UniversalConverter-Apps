@@ -13,7 +13,8 @@ public enum ProcessRunner {
         arguments: [String],
         environment: [String: String] = [:],
         workingDirectory: URL? = nil,
-        timeout: TimeInterval = ProcessRunner.defaultTimeout
+        timeout: TimeInterval = ProcessRunner.defaultTimeout,
+        onOutput: (@Sendable (String) -> Void)? = nil
     ) async throws -> ProcessOutput {
         try Task.checkCancellation()
 
@@ -46,6 +47,10 @@ public enum ProcessRunner {
         process.standardOutput = outHandle
         process.standardError = errHandle
 
+        // While the program runs, its new output lines go to `onOutput`, so a caller can show progress.
+        let tail: Task<Void, Never>? = onOutput.map { emit in
+            Task.detached { await Self.streamLines(from: outURL, emit: emit) }
+        }
         let box = ProcessBox(process)
         // The time limit. It is cancelled when the program ends, so it does not keep the process object alive.
         let watchdog = DispatchSource.makeTimerSource(queue: .global())
@@ -53,7 +58,54 @@ public enum ProcessRunner {
         watchdog.setEventHandler { [weak box] in box?.terminateForTimeout() }
         watchdog.resume()
         defer { watchdog.cancel() }
-        let exitCode: Int32 = try await withTaskCancellationHandler {
+        let exitCode: Int32
+        do {
+            exitCode = try await runProcess(process, box: box)
+        } catch {
+            tail?.cancel()
+            _ = await tail?.value
+            throw error
+        }
+        tail?.cancel()
+        _ = await tail?.value
+
+        try? outHandle.close()
+        try? errHandle.close()
+        if box.timedOut {
+            throw ConversionError.timedOut(tool: executable.lastPathComponent)
+        }
+        // Decoded leniently: a tool's message may contain bytes that are not valid UTF-8.
+        let stdout = String(decoding: (try? Data(contentsOf: outURL)) ?? Data(), as: UTF8.self)
+        let stderr = String(decoding: (try? Data(contentsOf: errURL)) ?? Data(), as: UTF8.self)
+        return ProcessOutput(exitCode: exitCode, stdout: stdout, stderr: stderr)
+    }
+
+    /// Reads whole lines from a file as it grows, and passes each one on. Runs until cancelled, then reads the rest.
+    private static func streamLines(from file: URL, emit: @Sendable (String) -> Void) async {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return }
+        defer { try? handle.close() }
+        var pending = ""
+        func flush(final: Bool) {
+            let data = (try? handle.readToEnd()) ?? Data()
+            pending += String(decoding: data, as: UTF8.self)
+            var lines = pending.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            pending = lines.removeLast()
+            if final, !pending.isEmpty {
+                lines.append(pending)
+                pending = ""
+            }
+            for line in lines where !line.isEmpty { emit(line) }
+        }
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            flush(final: false)
+        }
+        flush(final: true)
+    }
+
+    /// Starts the program and waits for it to end, or stops it if this task is cancelled.
+    private static func runProcess(_ process: Process, box: ProcessBox) async throws -> Int32 {
+        try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 process.terminationHandler = { finished in
                     continuation.resume(returning: finished.terminationStatus)
@@ -70,16 +122,6 @@ public enum ProcessRunner {
         } onCancel: {
             box.terminateIfRunning()
         }
-
-        try? outHandle.close()
-        try? errHandle.close()
-        if box.timedOut {
-            throw ConversionError.timedOut(tool: executable.lastPathComponent)
-        }
-        // Decoded leniently: a tool's message may contain bytes that are not valid UTF-8.
-        let stdout = String(decoding: (try? Data(contentsOf: outURL)) ?? Data(), as: UTF8.self)
-        let stderr = String(decoding: (try? Data(contentsOf: errURL)) ?? Data(), as: UTF8.self)
-        return ProcessOutput(exitCode: exitCode, stdout: stdout, stderr: stderr)
     }
 }
 

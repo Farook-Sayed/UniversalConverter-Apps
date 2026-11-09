@@ -61,7 +61,7 @@ final class CodeChunkerTests: XCTestCase {
         let prompt = CodePrompt.part(source: python, target: java, code: "x = 1", className: "Demo",
                                      index: 2, count: 5)
         XCTAssertTrue(prompt.contains("part 2 of 5"))
-        XCTAssertTrue(prompt.contains("named Demo"))
+        XCTAssertTrue(prompt.contains("Write only the members"), "Java parts are members, joined into one class later")
     }
 
     func testFileOverTheLimitIsRefusedBeforeAnythingRuns() async throws {

@@ -95,7 +95,7 @@ public struct Converter: Sendable {
     /// How many times the model may repair code that fails the syntax check. Zero turns repair off.
     public let repairAttempts: Int
     /// Reports what the conversion is doing now, such as "Translating part 2 of 5". Shown in the queue.
-    public let progress: @Sendable (String) -> Void
+    public let progress: @Sendable (ConversionProgress) -> Void
     /// How several page images are delivered. One page is always a single image.
     public let pageOutput: PageOutput
 
@@ -107,13 +107,18 @@ public struct Converter: Sendable {
     public static let audioOnlyTargets: Set<String> = ["mp3", "wav", "flac", "m4a", "ogg"]
 
     public init(tools: ToolLocator = ToolLocator(), ollama: OllamaClient = OllamaClient(), repairAttempts: Int = 1,
-                pageOutput: PageOutput = .folder, progress: @escaping @Sendable (String) -> Void = { _ in }) {
+                pageOutput: PageOutput = .folder, progress: @escaping @Sendable (ConversionProgress) -> Void = { _ in }) {
         self.tools = tools
         self.ollama = ollama
         self.validator = CodeValidator(tools: tools)
         self.repairAttempts = repairAttempts
         self.pageOutput = pageOutput
         self.progress = progress
+    }
+
+    /// Tells the caller what is happening. A fraction is given only when the work can be measured.
+    private func report(_ message: String, fraction: Double? = nil) {
+        progress(ConversionProgress(message, fraction: fraction))
     }
 
     /// Runs every step of the request's route in order. Each step reads the previous step's output.
@@ -147,11 +152,15 @@ public struct Converter: Sendable {
             if stepCount > 1 {
                 log.append("step \(index + 1) of \(stepCount): \(step.output.label)")
             }
-            progress(stepCount > 1 ? "Step \(index + 1) of \(stepCount)…" : "Converting…")
-            let (produced, check) = try await runStep(input: current, target: step.output, stem: stem,
-                                                      workDir: stepDir, log: &log, notes: &notes,
-                                                      compression: request.pdfCompression,
-                                                      imageAdjustments: request.imageAdjustments)
+            // One step that cannot be measured shows a spinner, so it reports no fraction. In a route, finished steps
+            // count, and a step's own percentage fills its share, so the bar never moves backwards.
+            report(stepCount > 1 ? "Step \(index + 1) of \(stepCount)…" : "Converting…",
+                   fraction: stepCount > 1 ? Double(index) / Double(stepCount) : nil)
+            let (produced, check) = try await worker(forStep: index, of: stepCount)
+                .runStep(input: current, target: step.output, stem: stem,
+                         workDir: stepDir, log: &log, notes: &notes,
+                         compression: request.pdfCompression,
+                         imageAdjustments: request.imageAdjustments)
             if isLast { validation = check }
             current = DetectedFile(url: produced, category: step.outputCategory, formatID: step.output.id,
                                    mimeType: "application/octet-stream", method: .magicBytes,
@@ -168,6 +177,26 @@ public struct Converter: Sendable {
         let finalURL = try OutputNaming.move(current.url, stem: finalStem, ext: ext, into: request.outputDirectory)
         return ConversionResult(outputURL: finalURL, engine: finalTarget.engine, log: log,
                                 validation: validation, notes: notes)
+    }
+
+    /// This converter, with progress scaled to one step of a route. A single step reports as it is.
+    private func worker(forStep index: Int, of count: Int) -> Converter {
+        guard count > 1 else { return self }
+        let outer = progress
+        return Converter(tools: tools, ollama: ollama, repairAttempts: repairAttempts, pageOutput: pageOutput) { update in
+            outer(ConversionProgress("Step \(index + 1) of \(count): \(update.message)",
+                                     fraction: update.fraction.map { (Double(index) + $0) / Double(count) }))
+        }
+    }
+
+    /// Runs slow synchronous work off the caller's thread. Cancelling the caller cancels the work.
+    static func offThread<Value: Sendable>(_ work: @escaping @Sendable () throws -> Value) async throws -> Value {
+        let task = Task.detached(priority: .userInitiated) { try work() }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
 
     /// One conversion, run by the engine the step names.
@@ -187,7 +216,7 @@ public struct Converter: Sendable {
         case .fonttools:
             return (try await runFonts(input: input, target: target, workDir: workDir, log: &log), nil)
         case .poppler:
-            return (try await runPoppler(input: input, target: target, workDir: workDir, log: &log), nil)
+            return (try await runPoppler(input: input, target: target, workDir: workDir, log: &log, notes: &notes), nil)
         case .ghostscript:
             if input.formatID == "pdf" {
                 return (try await compressPDF(input: input, compression: compression, workDir: workDir,
@@ -199,6 +228,9 @@ public struct Converter: Sendable {
         case .calibre:
             return (try await runCalibre(input: input, target: target, workDir: workDir, log: &log), nil)
         case .imageio:
+            if target.id == "txt" {
+                return (try await runImageText(input: input, workDir: workDir, log: &log, notes: &notes), nil)
+            }
             return (try await runImageIO(input: input, target: target, adjustments: imageAdjustments,
                                          workDir: workDir, log: &log, notes: &notes), nil)
         case .builtin:
@@ -209,7 +241,7 @@ public struct Converter: Sendable {
                                          notes: &notes), nil)
         case .ollama:
             let translation = try await runCodeTranslation(input: input, target: target, stem: stem,
-                                                           workDir: workDir, log: &log)
+                                                           workDir: workDir, log: &log, notes: &notes)
             return (translation.0, translation.1)
         }
     }
@@ -228,15 +260,30 @@ public struct Converter: Sendable {
             }
         }
         let output = workDir.appendingPathComponent("out.\(target.fileExtension)")
-        let args = ["-hide_banner", "-loglevel", "error", "-y", "-i", input.url.path]
+        // FFmpeg writes its progress as key=value lines to stdout. Their time, against the length, is the percentage.
+        let duration = await mediaDuration(input.url)
+        let args = ["-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-y", "-i", input.url.path]
             + Self.ffmpegOptions(for: target.id) + [output.path]
         log.append("ffmpeg \(args.joined(separator: " "))")
-        let result = try await ProcessRunner.run(tool, arguments: args)
+        let result = try await ProcessRunner.run(tool, arguments: args, onOutput: { [self] line in
+            guard let duration, duration > 0, line.hasPrefix("out_time_us="),
+                  let microseconds = Double(line.dropFirst("out_time_us=".count)) else { return }
+            self.report("Converting", fraction: microseconds / 1_000_000 / duration)
+        })
         guard result.exitCode == 0 else {
             throw ConversionError.toolFailed(tool: "FFmpeg", exitCode: result.exitCode,
                                              message: Self.lastLines(result.stderr))
         }
         return try requireOutput(output, tool: "FFmpeg")
+    }
+
+    /// The length of a media file in seconds. Nil when ffprobe is missing or cannot read the file.
+    private func mediaDuration(_ url: URL) async -> Double? {
+        guard let probe = tools.locate(["ffprobe"]),
+              let result = try? await ProcessRunner.run(probe, arguments: [
+                  "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", url.path,
+              ]), result.exitCode == 0 else { return nil }
+        return Double(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     /// True when the file has at least one audio stream. Uses ffprobe, which comes with FFmpeg.
@@ -351,7 +398,8 @@ public struct Converter: Sendable {
     }
 
     private func runCodeTranslation(input: DetectedFile, target: OutputFormat, stem: String,
-                                    workDir: URL, log: inout [String]) async throws -> (URL, ValidationResult) {
+                                    workDir: URL, log: inout [String],
+                                    notes: inout [String]) async throws -> (URL, ValidationResult) {
         guard let source = FormatCatalog.codeLanguage(forID: input.formatID),
               let destination = FormatCatalog.codeLanguage(forID: target.id) else {
             throw ConversionError.unsupported("Unknown language pair.")
@@ -377,23 +425,35 @@ public struct Converter: Sendable {
             translated = try await generateCode(CodePrompt.make(source: source, target: destination,
                                                                 code: code, className: stem))
         } else {
-            // A long file is cut at its top-level definitions. Each part is translated on its own, then joined.
-            let pieces = CodeChunker.split(code)
+            // A Java class is cut between its members. Any other long file is cut at its top-level definitions.
+            // Each part is translated on its own, then joined.
+            let javaClass = source.id == "java" ? CodeChunker.splitJavaClass(code) : nil
+            let pieces = javaClass?.parts ?? CodeChunker.split(code)
             log.append("long file: translating \(pieces.count) parts, then joining them")
             var translatedParts: [String] = []
             for (index, piece) in pieces.enumerated() {
                 try Task.checkCancellation()
-                progress("Translating part \(index + 1) of \(pieces.count)")
-                translatedParts.append(try await generateCode(CodePrompt.part(
-                    source: source, target: destination, code: piece, className: stem,
-                    index: index + 1, count: pieces.count)))
+                report("Translating part \(index + 1) of \(pieces.count)", fraction: Double(index) / Double(pieces.count))
+                let prompt = javaClass.map {
+                    CodePrompt.members(source: source, target: destination, code: piece, className: $0.className,
+                                       imports: $0.header, index: index + 1, count: pieces.count)
+                } ?? CodePrompt.part(source: source, target: destination, code: piece, className: stem,
+                                     index: index + 1, count: pieces.count)
+                translatedParts.append(try await generateCode(prompt))
             }
-            translated = CodeChunker.join(translatedParts)
             if destination.id == "java" {
-                log.append("Java: the parts are joined into one file. Check the class declaration.")
+                // A class in the source stays a class of its own. Any other class is one the model added around a part.
+                translated = CodeChunker.joinJavaClass(translatedParts, className: stem,
+                                                       keeping: CodeChunker.typeNames(in: code))
+                log.append("Java: the parts are joined into one class named \(stem)")
+            } else {
+                translated = CodeChunker.join(translatedParts)
+            }
+            if let javaClass {
+                notes.append("This long Java class was translated member by member, so \(javaClass.className) is now top-level functions and variables, not a class. Check how they fit together.")
             }
         }
-        progress("Checking the code")
+        report("Checking the code")
         var check = try await validator.validate(code: translated, language: destination,
                                                  fileName: fileName, workDir: workDir)
 
@@ -406,7 +466,7 @@ public struct Converter: Sendable {
                 log.append("the file is too large for one repair request, so it is saved with the errors listed")
             } else {
                 log.append("asking the model to repair the code")
-                progress("Repairing the code")
+                report("Repairing the code")
                 translated = try await generateCode(CodePrompt.repair(target: destination, code: translated,
                                                                       errors: messages, className: stem))
                 check = try await validator.validate(code: translated, language: destination,
@@ -431,11 +491,34 @@ public struct Converter: Sendable {
 
     /// PDF to text, or to one image per page (Poppler).
     private func runPoppler(input: DetectedFile, target: OutputFormat, workDir: URL,
-                            log: inout [String]) async throws -> URL {
+                            log: inout [String], notes: inout [String]) async throws -> URL {
         if target.id == "txt" {
             guard let tool = tools.locate(["pdftotext"]) else { throw ConversionError.toolNotFound("Poppler") }
             let output = workDir.appendingPathComponent("out.txt")
             try await execute("pdftotext", tool, ["-enc", "UTF-8", input.url.path, output.path], log: &log)
+            // A scanned page holds a picture and no text, so Vision reads the picture instead. pdftotext ends each
+            // page with a form feed, so an empty page shows up here, even among pages that do have text.
+            let layer = (try? String(contentsOf: output, encoding: .utf8)) ?? ""
+            let hasEmptyPage = layer.components(separatedBy: "\u{0C}").dropLast()
+                .contains { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            let hasNoText = layer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            if hasEmptyPage || hasNoText {
+                log.append("a page has no text layer, reading such pages with Vision")
+                let url = input.url
+                let result = try await Self.offThread { [self] in
+                    try TextRecognition.recognize(pdf: url) { fraction in
+                        self.report("Reading the pages", fraction: fraction)
+                    }
+                }
+                if result.recognizedText {
+                    try result.text.write(to: output, atomically: true, encoding: .utf8)
+                    notes.append(hasNoText
+                        ? "This PDF has no text layer, so its text was read from the page images. Check it for mistakes."
+                        : "\(result.scannedPages) page(s) have no text layer, so their text was read from the page images. Check them for mistakes.")
+                } else if hasNoText {
+                    notes.append("No text was found on the pages.")
+                }
+            }
             return try requireOutput(output, tool: "Poppler")
         }
         // No -f or -l options, so every page is converted. pdftoppm names the files page-1.png, page-2.png and so on.
@@ -494,7 +577,9 @@ public struct Converter: Sendable {
         var smallest: (url: URL, size: Int)?
         for (index, settings) in attempts.enumerated() {
             try Task.checkCancellation()
-            progress(attempts.count > 1 ? "Compressing, try \(index + 1) of \(attempts.count)" : "Compressing")
+            // One attempt cannot be measured, so it shows a spinner.
+            report(attempts.count > 1 ? "Compressing, try \(index + 1) of \(attempts.count)" : "Compressing",
+                   fraction: attempts.count > 1 ? Double(index) / Double(attempts.count) : nil)
             let output = workDir.appendingPathComponent("compressed-\(index).pdf")
             try await execute("Ghostscript", tool, base + settings + ["-sOutputFile=\(output.path)", input.url.path],
                               log: &log)

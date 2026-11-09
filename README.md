@@ -15,7 +15,7 @@ Everything runs on your Mac. Nothing is uploaded. Code translation uses a model 
 |---|---|
 | Video | MP4, MKV, WebM, AVI, MOV, WMV, FLV, 3GP, M2TS, MPG, VOB, GIF |
 | Audio | MP3, WAV, FLAC, M4A, OGG |
-| Images | PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, HEIC, camera RAW (CR2, CR3, NEF, ARW, DNG, RAF, ORF, RW2), SVG, PDF. Pictures can be compressed to a size you choose, resized, cropped, drawn as a sketch, or have their background removed. |
+| Images | PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, HEIC, camera RAW (CR2, CR3, NEF, ARW, DNG, RAF, ORF, RW2), SVG, PDF. Pictures can be compressed to a size you choose, resized, cropped with a draggable box, drawn as a sketch, or have their background removed. Text can be read from pictures and scanned PDFs. |
 | Documents | DOCX, DOC, ODT, RTF, PDF, HTML, TXT, Markdown, EPUB, Jupyter notebooks. PDFs can be compressed to a size you choose. |
 | Spreadsheets, slides | XLSX, XLS, ODS, CSV, PPTX, PPT, ODP |
 | E-books | EPUB, MOBI, AZW3, FB2 |
@@ -108,13 +108,14 @@ More: [GUIDE.md](GUIDE.md) (using the app), [DESIGN.md](DESIGN.md) (design rules
 
 ## Known limits
 
-- Code over 256 KB is refused. Longer files are split at their top-level definitions, translated part by part and joined, so they take longer. Java output may need its class declaration checked by hand.
+- Code over 256 KB is refused. Longer files are split at their top-level definitions, translated part by part and joined, so they take longer. Java output is one class named after the file, and it is checked with javac. A long Java class translated to another language becomes top-level functions and variables, so check how they fit together.
 - PDF to image saves every page, one image per page. Several pages go into a folder, or a ZIP file if you turn that on in Settings → General.
 - Translated code is checked for syntax. It is not tested for behaviour.
 - Archives are fully extracted to a temporary folder first. A very large archive needs that much free space.
 - RAR files can be read, but not written.
 - Camera RAW depends on macOS supporting the camera. It is tested with a generated DNG file, not with files from each brand.
-- A picture crop keeps the centre of the picture in a fixed shape. There is no crop box to drag yet.
+- Text recognition works best on printed text. Handwriting and unusual fonts are read less well, and a table is read column by column.
+- A progress percentage is shown for videos, audio, scanned PDFs, translated code, custom PDF sizes and conversions in several steps. Other conversions show a spinner.
 - Only tested on Apple silicon.
 
 ## License

@@ -283,6 +283,10 @@ public enum FormatCatalog {
             results.append(OutputFormat(id: "pdf", label: "PDF, smaller file", fileExtension: "pdf",
                                         engine: .ghostscript))
         }
+        // A picture can be read as text. Vision does the reading, so this needs nothing to install.
+        if category == .image, available(.imageio) {
+            results.append(OutputFormat(id: "txt", label: "Text (OCR)", fileExtension: "txt", engine: .imageio))
+        }
         // A picture can stay in its format and still be resized, cropped or compressed. GIF is left out,
         // because saving it again would keep only the first frame of an animation.
         if category == .image, formatID != "gif", imageIOTargets.contains(formatID), available(.imageio) {
