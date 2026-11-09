@@ -111,7 +111,7 @@ More: [GUIDE.md](GUIDE.md) (using the app), [DESIGN.md](DESIGN.md) (design rules
 - PDF to image saves only the first page.
 - Translated code is checked for syntax. It is not tested for behaviour.
 - Archives are fully extracted to a temporary folder first. A very large archive needs that much free space.
-- RAR files can be read and saved as ZIP, using 7-Zip. The RAR path has not yet been tested with a real RAR file.
+- RAR files can be read and saved as ZIP, using 7-Zip.
 - Only tested on Apple silicon.
 
 ## License
