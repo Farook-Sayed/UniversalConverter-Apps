@@ -17,7 +17,9 @@ struct FileConverterApp: App {
                 .environment(model)
                 .onAppear {
                     appDelegate.attach(model)
-                    model.requestNotificationPermission()
+                    if UserDefaults.standard.bool(forKey: SettingsKey.notifyWhenDone) {
+                        model.requestNotificationPermission()
+                    }
                 }
                 .task {
                     if SnapshotRunner.isRequested { await SnapshotRunner.run(model: model) }
@@ -62,6 +64,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
     }
+
+    /// Quitting stops the conversions that are running, so ask first.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // The snapshot tool quits on its own, and nobody is there to answer.
+        guard let model, model.anyBusy, !SnapshotRunner.isRequested else { return .terminateNow }
+        let alert = NSAlert()
+        alert.messageText = "Quit while files are converting?"
+        alert.informativeText = "Conversions that are still running will be stopped, and their results will not be saved."
+        alert.addButton(withTitle: "Quit")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+    }
+
+    /// A tool such as FFmpeg would otherwise keep running after the app is gone.
+    func applicationWillTerminate(_ notification: Notification) {
+        model?.cancelAll()
+    }
 }
 
 /// The menu bar: File, Convert, About and Help.
@@ -90,7 +109,7 @@ struct AppCommands: Commands {
                 model.convertAll()
             }
             .keyboardShortcut("r", modifiers: [.command, .shift])
-            .disabled(!model.hasItems || model.anyBusy)
+            .disabled(!model.hasConvertibleItems)
 
             Divider()
 

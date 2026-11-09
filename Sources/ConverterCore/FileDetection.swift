@@ -80,6 +80,11 @@ public struct FileDetector: Sendable {
                 formatID = "targz"
                 mime = "application/x-compressed-tar"
             }
+            // TIFF-based camera RAW files (CR2, NEF, ARW, DNG) share the TIFF signature. The extension names the brand.
+            if formatID == "tiff", let raw = FormatCatalog.rawFormat(forExtension: ext) {
+                formatID = raw
+                mime = "image/x-raw"
+            }
             // Legacy Office files are OLE containers. The extension is the only clue left.
             if formatID == "ole", let legacy = Signatures.legacyOffice(forExtension: ext) {
                 formatID = legacy.formatID
@@ -92,7 +97,7 @@ public struct FileDetector: Sendable {
         }
 
         // 2. No binary signature. Accept it as text only if it decodes as UTF-8 with no NUL bytes.
-        let looksLikeText = !bytes.contains(0) && String(data: head, encoding: .utf8) != nil
+        let looksLikeText = !bytes.contains(0) && Self.decodesAsUTF8(head)
         if looksLikeText {
             let text = String(decoding: head.prefix(512), as: UTF8.self).lowercased()
             // PostScript and EPS are plain text that starts with %!PS.
@@ -129,6 +134,14 @@ public struct FileDetector: Sendable {
         return DetectedFile(url: url, category: .unknown, formatID: ext.isEmpty ? "unknown" : ext,
                             mimeType: "application/octet-stream", method: .extensionOnly,
                             extensionMismatch: false)
+    }
+
+    /// True when the bytes are UTF-8 text. A 4 KB read can cut the last character in half, so when the read
+    /// was full, a few trailing bytes may be left off.
+    private static func decodesAsUTF8(_ data: Data) -> Bool {
+        if String(data: data, encoding: .utf8) != nil { return true }
+        guard data.count >= 4096 else { return false }
+        return (1...3).contains { String(data: data.dropLast($0), encoding: .utf8) != nil }
     }
 
     private func isMismatch(ext: String, formatID: String) -> Bool {
@@ -175,6 +188,10 @@ enum Signatures {
         if ascii("RIFF") && ascii("WEBP", 8) { return .init(formatID: "webp", category: .image, mime: "image/webp") }
         if ascii("RIFF") && ascii("WAVE", 8) { return .init(formatID: "wav", category: .audio, mime: "audio/wav") }
         if ascii("RIFF") && ascii("AVI ", 8) { return .init(formatID: "avi", category: .video, mime: "video/x-msvideo") }
+        // Camera RAW formats with their own signatures. The rest of the TIFF-based ones are told apart by extension.
+        if ascii("FUJIFILMCCD-RAW") { return .init(formatID: "raf", category: .image, mime: "image/x-fuji-raf") }
+        if ascii("IIRO") || ascii("IIRS") { return .init(formatID: "orf", category: .image, mime: "image/x-olympus-orf") }
+        if at([0x49, 0x49, 0x55, 0x00]) { return .init(formatID: "rw2", category: .image, mime: "image/x-panasonic-rw2") }
         if at([0x49, 0x49, 0x2A, 0x00]) || at([0x4D, 0x4D, 0x00, 0x2A]) { return .init(formatID: "tiff", category: .image, mime: "image/tiff") }
         // BMP: "BM", then a 4-byte file size, then four reserved bytes that are always zero.
         // Checking the zeros keeps ordinary text that starts with "BM" from matching.
@@ -213,10 +230,11 @@ enum Signatures {
             let brand = String(decoding: b.dropFirst(8).prefix(4), as: UTF8.self)
             switch brand {
             case "avif", "avis": return .init(formatID: "avif", category: .image, mime: "image/avif")
-            case "heic", "heix", "mif1": return .init(formatID: "heic", category: .image, mime: "image/heic")
+            case "heic", "heix", "heim", "heis", "hevc", "hevx", "mif1", "msf1": return .init(formatID: "heic", category: .image, mime: "image/heic")
             case "M4A ", "M4B ": return .init(formatID: "m4a", category: .audio, mime: "audio/mp4")
             case "qt  ": return .init(formatID: "mov", category: .video, mime: "video/quicktime")
             case "3gp4", "3gp5", "3gp6", "3gp7", "3g2a": return .init(formatID: "3gp", category: .video, mime: "video/3gpp")
+            case "crx ": return .init(formatID: "cr3", category: .image, mime: "image/x-canon-cr3")
             default: return .init(formatID: "mp4", category: .video, mime: "video/mp4")
             }
         }
@@ -233,27 +251,44 @@ enum Signatures {
     }
 
     /// Looks inside a ZIP container for Office, OpenDocument and EPUB markers.
+    ///
+    /// OpenDocument and EPUB files start with a stored entry named "mimetype", and its text names the type.
+    /// Office files keep their parts in folders (word/, xl/, ppt/), and the entry names are stored in the clear.
+    /// A name must start with the folder: an ordinary ZIP with a folder called "password/" is not a Word file.
     static func zipContainer(head b: [UInt8]) -> Match? {
-        let text = String(decoding: b, as: UTF8.self)
-        if text.contains("application/epub+zip") {
-            return .init(formatID: "epub", category: .markup, mime: "application/epub+zip")
+        if b.count > 38, Array(b[30..<38]) == Array("mimetype".utf8) {
+            let type = String(decoding: b[38..<min(b.count, 38 + 96)], as: UTF8.self)
+            if type.contains("application/epub+zip") {
+                return .init(formatID: "epub", category: .markup, mime: "application/epub+zip")
+            }
+            if type.contains("application/vnd.oasis.opendocument.text") {
+                return .init(formatID: "odt", category: .document, mime: "application/vnd.oasis.opendocument.text")
+            }
+            if type.contains("application/vnd.oasis.opendocument.spreadsheet") {
+                return .init(formatID: "ods", category: .spreadsheet, mime: "application/vnd.oasis.opendocument.spreadsheet")
+            }
+            if type.contains("application/vnd.oasis.opendocument.presentation") {
+                return .init(formatID: "odp", category: .presentation, mime: "application/vnd.oasis.opendocument.presentation")
+            }
         }
-        if text.contains("application/vnd.oasis.opendocument.text") {
-            return .init(formatID: "odt", category: .document, mime: "application/vnd.oasis.opendocument.text")
+
+        // The byte before an entry name is part of the header, never a letter, so a name that merely
+        // appears inside a longer path does not count.
+        func hasEntry(startingWith folder: String) -> Bool {
+            let needle = Array(folder.utf8)
+            guard b.count > needle.count else { return false }
+            for start in 1...(b.count - needle.count) where b[start - 1] < 0x20 {
+                if Array(b[start..<start + needle.count]) == needle { return true }
+            }
+            return false
         }
-        if text.contains("application/vnd.oasis.opendocument.spreadsheet") {
-            return .init(formatID: "ods", category: .spreadsheet, mime: "application/vnd.oasis.opendocument.spreadsheet")
-        }
-        if text.contains("application/vnd.oasis.opendocument.presentation") {
-            return .init(formatID: "odp", category: .presentation, mime: "application/vnd.oasis.opendocument.presentation")
-        }
-        if text.contains("word/") {
+        if hasEntry(startingWith: "word/") {
             return .init(formatID: "docx", category: .document, mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         }
-        if text.contains("xl/") {
+        if hasEntry(startingWith: "xl/") {
             return .init(formatID: "xlsx", category: .spreadsheet, mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         }
-        if text.contains("ppt/") {
+        if hasEntry(startingWith: "ppt/") {
             return .init(formatID: "pptx", category: .presentation, mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation")
         }
         return nil

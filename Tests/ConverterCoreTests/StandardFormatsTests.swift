@@ -4,7 +4,8 @@ import ConverterCore
 /// Formats that work on a fresh Mac, with no optional tools installed.
 final class StandardFormatsTests: XCTestCase {
 
-    private let builtinOnly: (Engine) -> Bool = { $0 == .builtin }
+    /// What a fresh Mac has: its command-line tools and its image framework.
+    private let builtinOnly: (Engine) -> Bool = { $0 == .builtin || $0 == .imageio }
 
     private func detected(_ formatID: String, _ category: MediaCategory, ext: String) -> DetectedFile {
         DetectedFile(url: URL(fileURLWithPath: "/tmp/input.\(ext)"), category: category, formatID: formatID,
@@ -18,18 +19,17 @@ final class StandardFormatsTests: XCTestCase {
     // MARK: Which conversions macOS can do
 
     func testBuiltinSupportTable() {
-        XCTAssertTrue(BuiltinEngine.supports(sourceID: "png", targetID: "jpg"))
         XCTAssertTrue(BuiltinEngine.supports(sourceID: "docx", targetID: "txt"))
         XCTAssertTrue(BuiltinEngine.supports(sourceID: "zip", targetID: "targz"))
         XCTAssertTrue(BuiltinEngine.supports(sourceID: "wav", targetID: "m4a"))
-        XCTAssertFalse(BuiltinEngine.supports(sourceID: "png", targetID: "webp"))
+        XCTAssertFalse(BuiltinEngine.supports(sourceID: "txt", targetID: "pdf"))
         XCTAssertFalse(BuiltinEngine.supports(sourceID: "mp4", targetID: "mp3"))
-        XCTAssertFalse(BuiltinEngine.supports(sourceID: "png", targetID: "png"))
+        XCTAssertFalse(BuiltinEngine.supports(sourceID: "docx", targetID: "docx"))
     }
 
     func testImagesConvertWithoutImageMagick() {
         let routes = FormatCatalog.targets(for: detected("png", .image, ext: "png"), available: builtinOnly)
-        XCTAssertEqual(route("jpg", routes)?.engine, .builtin)
+        XCTAssertEqual(route("jpg", routes)?.engine, .imageio)
         XCTAssertNil(route("webp", routes), "WebP needs ImageMagick")
         XCTAssertNil(route("pdf", routes), "PDF output needs ImageMagick")
     }
@@ -87,19 +87,6 @@ final class StandardFormatsTests: XCTestCase {
         Route(steps: [RouteStep(inputFormatID: source.formatID, inputCategory: source.category,
                                 output: OutputFormat(id: id, label: id.uppercased(), fileExtension: ext, engine: .builtin),
                                 outputCategory: category)])
-    }
-
-    func testPNGToJPEGWithSips() async throws {
-        let folder = try workFolder()
-        // A one-pixel PNG.
-        let png = try XCTUnwrap(Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="))
-        let input = folder.appendingPathComponent("dot.png")
-        try png.write(to: input)
-        let source = try FileDetector().detect(url: input)
-        let result = try await Converter().convert(ConversionRequest(
-            input: source, route: builtinRoute(from: source, to: "jpg", ext: "jpg", category: .image),
-            outputDirectory: folder))
-        XCTAssertEqual(try FileDetector().detect(url: result.outputURL).formatID, "jpg")
     }
 
     func testRTFToTextWithTextutil() async throws {

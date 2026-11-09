@@ -34,6 +34,29 @@ enum SnapshotRunner {
             model.loadDemo(folder: URL(fileURLWithPath: samples, isDirectory: true))
             try? await Task.sleep(nanoseconds: 2_500_000_000)
             save("queue\(suffix)", in: output, matching: { $0.title == "Universal Converter" })
+
+            // The picture adjustments, with every typed field showing.
+            if let picture = model.items.first(where: \.isImageTarget) {
+                model.editImage(picture.id) {
+                    $0.compression = .custom
+                    $0.customSize = "500 KB"
+                    $0.size = .pixels
+                    $0.customPixels = "1200"
+                    $0.crop = .square
+                    $0.removeBackground = true
+                    $0.effect = .sketch
+                }
+                let window = NSWindow(contentViewController: NSHostingController(
+                    rootView: ImageAdjustPopover(itemID: picture.id).environment(model)))
+                window.title = "Adjust"
+                window.isReleasedWhenClosed = false
+                window.makeKeyAndOrderFront(nil)
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                save("adjust\(suffix)", in: output, matching: { $0.title == "Adjust" })
+                window.close()
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                save("queue-adjusted\(suffix)", in: output, matching: { $0.title == "Universal Converter" })
+            }
         }
 
         NotificationCenter.default.post(name: .fcOpenSettings, object: nil)

@@ -45,7 +45,8 @@ struct ConvertFileIntent: AppIntent {
 
         let output = work.appendingPathComponent("output", isDirectory: true)
         let converter = Converter(ollama: OllamaClient(model: AppSettings.ollamaModel),
-                                  repairAttempts: AppSettings.repairAttempts)
+                                  repairAttempts: AppSettings.repairAttempts,
+                                  pageOutput: .zip)
         let result = try await converter.convert(
             ConversionRequest(input: detected, route: target, outputDirectory: output))
 

@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.ollamaModel) private var ollamaModel = CodeModels.defaultName
     @AppStorage(SettingsKey.repairCode) private var repairCode = true
     @AppStorage(SettingsKey.revealWhenDone) private var revealWhenDone = false
+    @AppStorage(SettingsKey.pagesAsZip) private var pagesAsZip = false
     @AppStorage(SettingsKey.notifyWhenDone) private var notifyWhenDone = true
     @AppStorage(SettingsKey.settingsTab) private var tabName = SettingsTab.general.rawValue
 
@@ -60,6 +61,13 @@ struct SettingsView: View {
                         .disabled(outputFolder.isEmpty)
                 }
             }
+            Section {
+                Toggle("Save several pages as a ZIP file", isOn: $pagesAsZip)
+            } header: {
+                Text("PDF pages as images")
+            } footer: {
+                Text("Each page becomes one image. A PDF with one page gives one image. A PDF with several pages gives a folder of images, or a ZIP file when this is on.")
+            }
             Section("When a file is ready") {
                 Toggle("Show the result in Finder", isOn: $revealWhenDone)
                 Toggle("Notify me when a file finishes while the app is in the background", isOn: $notifyWhenDone)
@@ -104,7 +112,7 @@ struct SettingsView: View {
     private var tools: some View {
         Form {
             Section {
-                Label("Images (PNG, JPEG, TIFF, GIF, BMP), Word and text (DOCX, DOC, RTF, HTML, TXT), audio (WAV, M4A) and archives (ZIP, TAR, TAR.GZ).", systemImage: "checkmark.seal")
+                Label("Images (PNG, JPEG, HEIC, TIFF, GIF, BMP and camera RAW), with resizing, cropping and more, Word and text (DOCX, DOC, RTF, HTML, TXT), audio (WAV, M4A) and archives (ZIP, TAR, TAR.GZ).", systemImage: "checkmark.seal")
                     .foregroundStyle(.secondary)
                     .font(.callout)
             } header: {

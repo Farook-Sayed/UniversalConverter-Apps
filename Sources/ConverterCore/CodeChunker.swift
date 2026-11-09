@@ -86,7 +86,7 @@ public enum CodeChunker {
         guard let first = line.first, first != " ", first != "\t" else { return false }
         if ["}", ")", "]"].contains(first) { return false }
         let previous = lines[index - 1]
-        let afterBlank = previous.trimmingCharacters(in: .whitespaces).isEmpty
+        let afterBlank = previous.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let afterClose = previous.hasPrefix("}") || previous.hasPrefix(")") || previous.hasPrefix("]")
         return afterBlank || afterClose
     }
@@ -112,5 +112,31 @@ public enum CodeChunker {
         }
         if !buffer.isEmpty { parts.append(buffer.joined(separator: "\n")) }
         return parts
+    }
+}
+
+/// Reads a source file as text. Windows line endings become plain newlines, so splitting and checking
+/// work the same for every file. Files that are not UTF-8 are read as the older Windows encoding.
+public enum CodeText {
+    public static func read(_ url: URL) throws -> String {
+        normalize(decode(try Data(contentsOf: url)))
+    }
+
+    static func decode(_ data: Data) -> String {
+        if data.starts(with: [0xFF, 0xFE]) || data.starts(with: [0xFE, 0xFF]),
+           let text = String(data: data, encoding: .utf16) {
+            return text
+        }
+        var bytes = data
+        if bytes.starts(with: [0xEF, 0xBB, 0xBF]) { bytes = bytes.dropFirst(3) }
+        if let text = String(data: bytes, encoding: .utf8) { return text }
+        // Older source files are usually Windows-1252. ISO Latin 1 accepts every byte, so it is the last resort.
+        return String(data: bytes, encoding: .windowsCP1252)
+            ?? String(data: bytes, encoding: .isoLatin1)
+            ?? String(decoding: bytes, as: UTF8.self)
+    }
+
+    public static func normalize(_ text: String) -> String {
+        text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
     }
 }

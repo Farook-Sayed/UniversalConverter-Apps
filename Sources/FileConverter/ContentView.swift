@@ -97,9 +97,9 @@ struct ContentView: View {
                     Label("Convert All", systemImage: "arrow.triangle.2.circlepath")
                         .labelStyle(.titleAndIcon)
                 }
-                .prominentButtonStyle()
+                .prominentButtonStyle(enabled: model.hasConvertibleItems)
                 .help("Convert every file that has a format chosen (⇧⌘R)")
-                .disabled(model.anyBusy)
+                .disabled(!model.hasConvertibleItems)
             }
             ToolbarItem(placement: .primaryAction) {
                 Menu {
@@ -126,7 +126,7 @@ struct ContentView: View {
             Button("Convert Again") { model.convert(item.id) }
         default:
             Button("Convert") { model.convert(item.id) }
-                .disabled(item.selectedTarget == nil || item.isBlocked)
+                .disabled(item.selectedTarget == nil || item.isBlocked || item.needsCustomSize)
         }
         Button("Show Original in Finder") { model.reveal(item.file.url) }
         Divider()

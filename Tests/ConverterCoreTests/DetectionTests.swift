@@ -51,21 +51,43 @@ final class DetectionTests: XCTestCase {
         XCTAssertEqual(detector.detect(head: ftyp("avif"), url: URL(fileURLWithPath: "/tmp/p.avif")).formatID, "avif")
     }
 
+    /// One ZIP entry as it is stored in a file: the 30-byte local header, then the name, then the stored data.
+    private func zipEntry(_ name: String, data: String = "") -> Data {
+        var entry = Data([0x50, 0x4B, 0x03, 0x04])
+        entry.append(Data(repeating: 0, count: 22))            // version, flags, method, time, date, CRC, sizes
+        entry.append(contentsOf: [UInt8(name.utf8.count), 0])  // name length
+        entry.append(contentsOf: [0, 0])                       // extra field length
+        entry.append(ascii(name))
+        entry.append(ascii(data))
+        return entry
+    }
+
     func testWordDocumentInsideZipIsRecognised() {
-        // A .docx is a ZIP whose entries include "word/".
-        var data = bytes([0x50, 0x4B, 0x03, 0x04])
-        data.append(ascii("[Content_Types].xml word/document.xml"))
+        // A .docx is a ZIP whose entry names start with "word/".
+        var data = zipEntry("[Content_Types].xml", data: "<Types/>")
+        data.append(zipEntry("word/document.xml"))
         let file = detector.detect(head: data, url: URL(fileURLWithPath: "/tmp/report.docx"))
         XCTAssertEqual(file.formatID, "docx")
         XCTAssertEqual(file.category, .document)
     }
 
     func testOpenDocumentSpreadsheetInsideZipIsRecognised() {
-        var data = bytes([0x50, 0x4B, 0x03, 0x04])
-        data.append(ascii("mimetypeapplication/vnd.oasis.opendocument.spreadsheet"))
+        // OpenDocument files store "mimetype" first, and its text names the type.
+        let data = zipEntry("mimetype", data: "application/vnd.oasis.opendocument.spreadsheet")
         let file = detector.detect(head: data, url: URL(fileURLWithPath: "/tmp/budget.ods"))
         XCTAssertEqual(file.formatID, "ods")
         XCTAssertEqual(file.category, .spreadsheet)
+    }
+
+    func testOrdinaryZipsWithOfficeLookingFolderNamesStayZips() {
+        // "password/" contains "word/", "documents/word/" has a word folder inside another, and a text file
+        // can mention a type. None of these is an Office or OpenDocument file.
+        var data = zipEntry("backup/password/list.txt")
+        data.append(zipEntry("documents/word/notes.txt"))
+        data.append(zipEntry("notes.txt", data: "see application/vnd.oasis.opendocument.text"))
+        let file = detector.detect(head: data, url: URL(fileURLWithPath: "/tmp/backup.zip"))
+        XCTAssertEqual(file.formatID, "zip")
+        XCTAssertEqual(file.category, .archive)
     }
 
     func testWindowsMediaAndFlashAreIdentified() {

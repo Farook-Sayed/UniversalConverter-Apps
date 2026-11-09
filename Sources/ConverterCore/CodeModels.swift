@@ -62,8 +62,10 @@ public enum CodeModels {
         let parts = name.split(separator: ":", maxSplits: 1).map(String.init)
         let model = parts.first ?? name
         let tag = parts.count > 1 ? parts[1] : "latest"
+        // "llama3" lives under library. A name such as "someone/model" lives under its own namespace.
+        let location = model.contains("/") ? model : "library/\(model)"
         return URL(fileURLWithPath: NSHomeDirectory())
-            .appendingPathComponent(".ollama/models/manifests/registry.ollama.ai/library/\(model)/\(tag)")
+            .appendingPathComponent(".ollama/models/manifests/registry.ollama.ai/\(location)/\(tag)")
     }
 
     public static var physicalMemoryGB: Int {

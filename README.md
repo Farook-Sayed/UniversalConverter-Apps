@@ -15,22 +15,22 @@ Everything runs on your Mac. Nothing is uploaded. Code translation uses a model 
 |---|---|
 | Video | MP4, MKV, WebM, AVI, MOV, WMV, FLV, 3GP, M2TS, MPG, VOB, GIF |
 | Audio | MP3, WAV, FLAC, M4A, OGG |
-| Images | PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, HEIC, SVG, PDF |
-| Documents | DOCX, DOC, ODT, RTF, PDF, HTML, TXT, Markdown, EPUB, Jupyter notebooks |
+| Images | PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, HEIC, camera RAW (CR2, CR3, NEF, ARW, DNG, RAF, ORF, RW2), SVG, PDF. Pictures can be compressed to a size you choose, resized, cropped, drawn as a sketch, or have their background removed. |
+| Documents | DOCX, DOC, ODT, RTF, PDF, HTML, TXT, Markdown, EPUB, Jupyter notebooks. PDFs can be compressed to a size you choose. |
 | Spreadsheets, slides | XLSX, XLS, ODS, CSV, PPTX, PPT, ODP |
 | E-books | EPUB, MOBI, AZW3, FB2 |
 | PostScript | PS, EPS |
 | 3D models | OBJ, STL, PLY, COLLADA, glTF, GLB |
 | Fonts | TTF, OTF, WOFF, WOFF2 |
 | Subtitles | SRT, VTT, ASS |
-| Archives | ZIP, 7z, tar.gz, tar |
+| Archives | ZIP, 7z, tar.gz, tar, and RAR as input |
 | Code | Python, Java, C, C++, Rust, JavaScript, TypeScript, Ruby, Go, C# |
 
 Some conversions need several steps, such as Markdown to PDF. The app finds the chain for you and shows it in the format menu. See [GUIDE.md](GUIDE.md) for the full list.
 
 ## How it works
 
-The app does not convert anything itself. It identifies the file, plans a route, and runs the right tools:
+The app identifies the file, plans a route, and runs the right tools. Pictures use the frameworks built into macOS, and most other formats use a separate tool:
 
 ```
 file  →  detect by content  →  plan a route  →  run each step  →  result
@@ -40,7 +40,8 @@ file  →  detect by content  →  plan a route  →  run each step  →  result
 | Tool | Used for |
 |---|---|
 | FFmpeg | Video, audio, subtitles |
-| ImageMagick | Images |
+| macOS (ImageIO, Core Image, Vision) | Pictures, HEIC, camera RAW, background removal, sketches |
+| ImageMagick | WebP, AVIF, SVG, and pictures to PDF |
 | LibreOffice | Documents, spreadsheets, slides |
 | Pandoc | Markdown, HTML, EPUB, notebooks |
 | Calibre | E-books |
@@ -108,10 +109,12 @@ More: [GUIDE.md](GUIDE.md) (using the app), [DESIGN.md](DESIGN.md) (design rules
 ## Known limits
 
 - Code over 256 KB is refused. Longer files are split at their top-level definitions, translated part by part and joined, so they take longer. Java output may need its class declaration checked by hand.
-- PDF to image saves only the first page.
+- PDF to image saves every page, one image per page. Several pages go into a folder, or a ZIP file if you turn that on in Settings → General.
 - Translated code is checked for syntax. It is not tested for behaviour.
 - Archives are fully extracted to a temporary folder first. A very large archive needs that much free space.
-- RAR files can be read and saved as ZIP, using 7-Zip.
+- RAR files can be read, but not written.
+- Camera RAW depends on macOS supporting the camera. It is tested with a generated DNG file, not with files from each brand.
+- A picture crop keeps the centre of the picture in a fixed shape. There is no crop box to drag yet.
 - Only tested on Apple silicon.
 
 ## License
