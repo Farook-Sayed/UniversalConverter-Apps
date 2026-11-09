@@ -109,7 +109,6 @@ More: [GUIDE.md](GUIDE.md) (using the app), [DESIGN.md](DESIGN.md) (design rules
 ## Known limits
 
 - Code over 256 KB is refused. Longer files are split at their top-level definitions, translated part by part and joined, so they take longer. Java output may need its class declaration checked by hand.
-- PDF to image saves every page, one image per page. Several pages go into a folder, or a ZIP file if you turn that on in Settings → General.
 - Translated code is checked for syntax. It is not tested for behaviour.
 - Archives are fully extracted to a temporary folder first. A very large archive needs that much free space.
 - RAR files can be read, but not written.
