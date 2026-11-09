@@ -186,6 +186,22 @@ final class ImageTests: XCTestCase {
 
     // MARK: Camera RAW
 
+    /// The first bytes of a file whose brand is stored in an "ftyp" box, as in HEIC and CR3.
+    private func ftypHeader(_ brand: String) -> Data {
+        var data = Data([0, 0, 0, 0x18])
+        data.append(Data("ftyp".utf8))
+        data.append(Data(brand.utf8))
+        data.append(Data(repeating: 0, count: 60))
+        return data
+    }
+
+    /// The given bytes, followed by enough zeros to look like the start of a file.
+    private func padded(_ start: Data) -> Data {
+        var data = start
+        data.append(Data(repeating: 0, count: 60))
+        return data
+    }
+
     /// The first bytes of a TIFF-based RAW file, then the brand marker that Canon uses at byte 8.
     private func tiffHeader(_ extra: String = "") -> Data {
         var data = Data([0x49, 0x49, 0x2A, 0x00, 0x10, 0x00, 0x00, 0x00])
@@ -202,12 +218,11 @@ final class ImageTests: XCTestCase {
         XCTAssertEqual(detector.detect(head: tiffHeader(), url: URL(fileURLWithPath: "/tmp/scan.tif")).formatID, "tiff",
                        "an ordinary TIFF stays a TIFF")
         XCTAssertEqual(detector.detect(head: Data("FUJIFILMCCD-RAW 0201".utf8), url: URL(fileURLWithPath: "/tmp/a.raf")).formatID, "raf")
-        XCTAssertEqual(detector.detect(head: Data("IIRO".utf8) + Data(repeating: 0, count: 60),
-                                       url: URL(fileURLWithPath: "/tmp/a.orf")).formatID, "orf")
-        XCTAssertEqual(detector.detect(head: Data([0x49, 0x49, 0x55, 0x00]) + Data(repeating: 0, count: 60),
-                                       url: URL(fileURLWithPath: "/tmp/a.rw2")).formatID, "rw2")
-        let cr3 = Data([0, 0, 0, 0x18]) + Data("ftyp".utf8) + Data("crx ".utf8) + Data(repeating: 0, count: 60)
-        XCTAssertEqual(detector.detect(head: cr3, url: URL(fileURLWithPath: "/tmp/a.cr3")).formatID, "cr3")
+        let orf = padded(Data("IIRO".utf8))
+        XCTAssertEqual(detector.detect(head: orf, url: URL(fileURLWithPath: "/tmp/a.orf")).formatID, "orf")
+        let rw2 = padded(Data([0x49, 0x49, 0x55, 0x00]))
+        XCTAssertEqual(detector.detect(head: rw2, url: URL(fileURLWithPath: "/tmp/a.rw2")).formatID, "rw2")
+        XCTAssertEqual(detector.detect(head: ftypHeader("crx "), url: URL(fileURLWithPath: "/tmp/a.cr3")).formatID, "cr3")
     }
 
     func testCameraRAWFilesOfferPNGAndJPGWithoutImageMagick() {
@@ -267,8 +282,14 @@ final class ImageTests: XCTestCase {
 
     private func brightness(_ image: CGImage) throws -> Double {
         let bytes = try thumbnail(image)
-        let colours = stride(from: 0, to: bytes.count, by: 4).map { Int(bytes[$0]) + Int(bytes[$0 + 1]) + Int(bytes[$0 + 2]) }
-        return Double(colours.reduce(0, +)) / Double(colours.count) / 3
+        var total = 0
+        for index in stride(from: 0, to: bytes.count, by: 4) {
+            total += Int(bytes[index])
+            total += Int(bytes[index + 1])
+            total += Int(bytes[index + 2])
+        }
+        let colourValues = bytes.count / 4 * 3
+        return Double(total) / Double(colourValues)
     }
 
     private func convert(_ url: URL, to targetID: String, _ adjustments: ImageAdjustments,
@@ -428,75 +449,106 @@ final class ImageTests: XCTestCase {
         let detector = FileDetector()
         XCTAssertEqual(detector.detect(head: tiffHeader(), url: URL(fileURLWithPath: "/tmp/a.nrw")).formatID, "nef")
         XCTAssertEqual(detector.detect(head: tiffHeader(), url: URL(fileURLWithPath: "/tmp/a.srf")).formatID, "arw")
-        let burst = Data([0, 0, 0, 0x18]) + Data("ftyp".utf8) + Data("hevc".utf8) + Data(repeating: 0, count: 60)
-        XCTAssertEqual(detector.detect(head: burst, url: URL(fileURLWithPath: "/tmp/a.heic")).formatID, "heic")
+        XCTAssertEqual(detector.detect(head: ftypHeader("hevc"), url: URL(fileURLWithPath: "/tmp/a.heic")).formatID, "heic")
     }
 
     /// A real DNG, built by hand and read by the macOS RAW decoder: red rises to the right and green rises downward.
     private func makeDNG(width: Int, height: Int, named name: String) throws -> URL {
-        var pixels = Data(capacity: width * height * 6)
-        func put16(_ value: Int) {
-            pixels.append(UInt8(value & 0xFF))
-            pixels.append(UInt8(value >> 8))
+        func u16(_ value: Int) -> [UInt8] {
+            [UInt8(value & 0xFF), UInt8((value >> 8) & 0xFF)]
         }
+        func u32(_ value: Int) -> [UInt8] {
+            var result = u16(value & 0xFFFF)
+            result.append(contentsOf: u16((value >> 16) & 0xFFFF))
+            return result
+        }
+
+        var pixels: [UInt8] = []
+        pixels.reserveCapacity(width * height * 6)
         for y in 0..<height {
             for x in 0..<width {
-                put16(x * 65535 / width)
-                put16(y * 65535 / height)
-                put16(32768)
+                pixels.append(contentsOf: u16(x * 65535 / width))
+                pixels.append(contentsOf: u16(y * 65535 / height))
+                pixels.append(contentsOf: u16(32768))
             }
         }
-        func bytes<T: FixedWidthInteger>(_ value: T) -> [UInt8] { withUnsafeBytes(of: value.littleEndian) { Array($0) } }
-        let count = 20, start = 8 + 2 + count * 12 + 4
-        var blob = Data()
-        func add(_ data: Data) -> UInt32 {
-            let offset = UInt32(start + blob.count)
-            blob.append(data)
+
+        // The directory comes first, and everything too long to fit in an entry goes after it.
+        let entryCount = 20
+        let dataStart = 8 + 2 + entryCount * 12 + 4
+        var blob: [UInt8] = []
+        func add(_ data: [UInt8]) -> Int {
+            let offset = dataStart + blob.count
+            blob.append(contentsOf: data)
             if blob.count % 2 == 1 { blob.append(0) }
             return offset
         }
-        var entries = Data()
-        func entry(_ tag: UInt16, _ type: UInt16, _ items: Int, _ value: UInt32) {
-            entries.append(contentsOf: bytes(tag) + bytes(type) + bytes(UInt32(items)) + bytes(value))
+        var entries: [UInt8] = []
+        func entry(_ tag: Int, _ type: Int, _ items: Int, _ value: [UInt8]) {
+            entries.append(contentsOf: u16(tag))
+            entries.append(contentsOf: u16(type))
+            entries.append(contentsOf: u32(items))
+            entries.append(contentsOf: value)
         }
-        func text(_ tag: UInt16, _ string: String) {
-            let data = Data(string.utf8) + Data([0])
-            entry(tag, 2, data.count, add(data))
+        func text(_ tag: Int, _ string: String) {
+            var data = Array(string.utf8)
+            data.append(0)
+            entry(tag, 2, data.count, u32(add(data)))
         }
-        entry(254, 4, 1, 0)
-        entry(256, 4, 1, UInt32(width))
-        entry(257, 4, 1, UInt32(height))
-        entry(258, 3, 3, add(Data(bytes(UInt16(16)) + bytes(UInt16(16)) + bytes(UInt16(16)))))
-        entry(259, 3, 1, 1)
-        entry(262, 3, 1, 34892)   // linear raw
+        func repeated(_ value: [UInt8], _ times: Int) -> [UInt8] {
+            var result: [UInt8] = []
+            for _ in 0..<times { result.append(contentsOf: value) }
+            return result
+        }
+
+        // XYZ to sRGB, as signed fractions over 10000.
+        let matrix: [Int32] = [32406, -15372, -4986, -9689, 18758, 415, 557, -2040, 10570]
+        var matrixBytes: [UInt8] = []
+        for value in matrix {
+            matrixBytes.append(contentsOf: u32(Int(UInt32(bitPattern: value))))
+            matrixBytes.append(contentsOf: u32(10000))
+        }
+        let matrixOffset = add(matrixBytes)
+        var neutral = u32(1)
+        neutral.append(contentsOf: u32(1))
+        let neutralOffset = add(repeated(neutral, 3))
+        let whiteOffset = add(repeated(u32(65535), 3))
+        var model = Array("Test Synthetic".utf8)
+        model.append(0)
+        let modelOffset = add(model)
+        let sampleSizes = add(repeated(u16(16), 3))
+        let stripOffset = add(pixels)
+
+        // Tags in the ascending order the format requires.
+        entry(254, 4, 1, u32(0))
+        entry(256, 4, 1, u32(width))
+        entry(257, 4, 1, u32(height))
+        entry(258, 3, 3, u32(sampleSizes))
+        entry(259, 3, 1, u32(1))
+        entry(262, 3, 1, u32(34892))   // linear raw
         text(271, "Test")
         text(272, "Synthetic")
-        let matrix = [32406, -15372, -4986, -9689, 18758, 415, 557, -2040, 10570].flatMap { bytes(Int32($0)) + bytes(Int32(10000)) }
-        let matrixOffset = add(Data(matrix))
-        let neutralOffset = add(Data((0..<3).flatMap { _ in bytes(UInt32(1)) + bytes(UInt32(1)) }))
-        let whiteOffset = add(Data((0..<3).flatMap { _ in bytes(UInt32(65535)) }))
-        let modelData = Data("Test Synthetic".utf8) + Data([0])
-        let modelOffset = add(modelData)
-        let stripOffset = add(pixels)
-        entry(273, 4, 1, stripOffset)
-        entry(274, 3, 1, 1)
-        entry(277, 3, 1, 3)
-        entry(278, 4, 1, UInt32(height))
-        entry(279, 4, 1, UInt32(pixels.count))
-        entry(284, 3, 1, 1)
-        entries.append(contentsOf: bytes(UInt16(50706)) + bytes(UInt16(1)) + bytes(UInt32(4)) + [1, 4, 0, 0])
-        entries.append(contentsOf: bytes(UInt16(50707)) + bytes(UInt16(1)) + bytes(UInt32(4)) + [1, 1, 0, 0])
-        entry(50708, 2, modelData.count, modelOffset)
-        entry(50717, 4, 3, whiteOffset)
-        entry(50721, 10, 9, matrixOffset)
-        entry(50728, 5, 3, neutralOffset)
+        entry(273, 4, 1, u32(stripOffset))
+        entry(274, 3, 1, u32(1))
+        entry(277, 3, 1, u32(3))
+        entry(278, 4, 1, u32(height))
+        entry(279, 4, 1, u32(pixels.count))
+        entry(284, 3, 1, u32(1))
+        entry(50706, 1, 4, [1, 4, 0, 0])
+        entry(50707, 1, 4, [1, 1, 0, 0])
+        entry(50708, 2, model.count, u32(modelOffset))
+        entry(50717, 4, 3, u32(whiteOffset))
+        entry(50721, 10, 9, u32(matrixOffset))
+        entry(50728, 5, 3, u32(neutralOffset))
 
-        var file = Data([0x49, 0x49, 0x2A, 0x00] + bytes(UInt32(8)) + bytes(UInt16(count)))
-        file.append(entries)
-        file.append(contentsOf: bytes(UInt32(0)))
-        file.append(blob)
+        var file: [UInt8] = [0x49, 0x49, 0x2A, 0x00]
+        file.append(contentsOf: u32(8))
+        file.append(contentsOf: u16(entryCount))
+        file.append(contentsOf: entries)
+        file.append(contentsOf: u32(0))
+        file.append(contentsOf: blob)
         let url = dir.appendingPathComponent(name)
-        try file.write(to: url)
+        try Data(file).write(to: url)
         return url
     }
 
