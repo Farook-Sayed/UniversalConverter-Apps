@@ -17,6 +17,17 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private string _outputFolder = AppSettings.Current.OutputFolder;
 
+    /// <summary>What the files in the queue could be merged into. Empty until two files of the same kind are in the queue.</summary>
+    public IReadOnlyList<MergeGroup> MergeGroups => MergePlanner.GroupsFor(Items.Select(i => i.File));
+    public bool CanMerge => MergeGroups.Count > 0;
+
+    /// <summary>A merge window for the files in the queue, or null when nothing can be merged.</summary>
+    public MergeViewModel? MakeMergeSession()
+    {
+        var groups = MergeGroups;
+        return groups.Count == 0 ? null : new MergeViewModel(groups, OutputFolder);
+    }
+
     public bool HasItems => Items.Count > 0;
     public bool HasNoItems => Items.Count == 0;
     public bool CanConvertAll => Items.Any(i => i.IsReady && i.CanConvert || i.IsFailed && i.CanConvert);
@@ -44,6 +55,7 @@ public partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(HasItems)); OnPropertyChanged(nameof(HasNoItems));
         OnPropertyChanged(nameof(CanConvertAll)); OnPropertyChanged(nameof(AnyBusy)); OnPropertyChanged(nameof(QueueSummary));
+        OnPropertyChanged(nameof(CanMerge));
     }
 
     partial void OnOutputFolderChanged(string value)

@@ -233,7 +233,7 @@ public static class FormatCatalog
     {
         "md" => "markdown",
         "txt" => input ? "markdown" : "plain",
-        "html" => "html", "docx" => "docx", "rtf" => "rtf", "epub" => "epub",
+        "html" => "html", "docx" => "docx", "odt" => "odt", "rtf" => "rtf", "epub" => "epub",
         "ipynb" => input ? "ipynb" : null,
         _ => null,
     };

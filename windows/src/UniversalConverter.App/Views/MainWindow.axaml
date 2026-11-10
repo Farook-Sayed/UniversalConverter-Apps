@@ -21,6 +21,7 @@
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
           <Button x:Name="AddButton" Content="Add files…" Click="OnAddFiles" />
+          <Button Content="Merge…" Click="OnMerge" IsVisible="{Binding CanMerge}" ToolTip.Tip="Join several files into one" />
           <Button Classes="accent" Content="Convert all" Command="{Binding ConvertAllCommand}" IsEnabled="{Binding CanConvertAll}" />
           <Button Content="Settings and tools" Click="OnOpenSettings" />
         </StackPanel>

@@ -21,7 +21,21 @@ Download `UniversalConverter.exe` and double-click it. It is one file, about 90 
 | Scanned PDFs and pictures | Text is read with Windows' own text recognition (Windows.Media.Ocr). |
 | Archives | Read ZIP, 7z, RAR, tar and tar.gz. Write ZIP, tar and tar.gz. |
 | 3D models | OBJ, STL, PLY, COLLADA, glTF and GLB. |
+| Merging | Several pictures and PDFs into one PDF (A4, Letter or each picture's own size). |
 | Picture adjustments | Size, compression to a size you type, a draggable crop box, background removal, sketch, and removing camera and location details. |
+
+## Merging files
+
+When the queue holds two or more files of the same kind, a **Merge…** button appears. It opens a window where you choose the order with the arrows, the format, and the name, and then joins them into one file:
+
+| Files | Result | Needs |
+|---|---|---|
+| Pictures and PDFs, mixed | One PDF, one page per picture, and every page of each PDF | Nothing to install |
+| Audio files | One audio file (MP3, WAV, FLAC, M4A or Ogg), even when the files differ in format or sample rate | FFmpeg |
+| Videos | One video (MP4, MKV, WebM or MOV), scaled to the first video's size | FFmpeg |
+| Documents (Markdown, text, HTML, Word, OpenDocument, RTF) | One document (Word, Markdown, text, HTML, RTF or EPUB) | Pandoc |
+
+Password-protected PDFs and unreadable pictures stop the merge with a message that names the file. If one video has no sound, the merged video has none, and the app says so. Merging does not change the files in the queue.
 
 ## What needs a free program
 

@@ -30,6 +30,14 @@ public static class Snapshots
             Save(adjust, Path.Combine(folder, "adjust.png"));
             adjust.Close();
         }
+        if (model.MakeMergeSession() is { } session)
+        {
+            var merge = new MergeWindow(session);
+            merge.Show();
+            await Task.Delay(1000);
+            Save(merge, Path.Combine(folder, "merge.png"));
+            merge.Close();
+        }
         for (int tab = 0; tab < 3; tab++)
         {
             var settings = new SettingsWindow(model, tab);

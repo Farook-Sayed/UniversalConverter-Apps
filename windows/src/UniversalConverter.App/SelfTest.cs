@@ -68,6 +68,16 @@ public static class SelfTest
             using var doc = UglyToad.PdfPig.PdfDocument.Open(bytes);
             return $"{pages} page drawn, {new FileInfo(png).Length / 1024} KB, {doc.NumberOfPages} page read for text";
         });
+        Check("merge pictures and a PDF", () =>
+        {
+            var pdf = Path.Combine(work, "one.pdf");
+            using (var page = new MagickImage(picture)) page.Write(pdf, MagickFormat.Pdf);
+            var detector = new FileDetector();
+            var merged = Path.Combine(work, "merged.pdf");
+            int pages = PdfMerger.Merge([detector.Detect(picture), detector.Detect(pdf), detector.Detect(picture)], MergePageSize.A4, merged, _ => { }, CancellationToken.None);
+            using var doc = UglyToad.PdfPig.PdfDocument.Open(merged);
+            return pages == 3 && doc.NumberOfPages == 3 ? "3 pages in one PDF" : throw new Exception($"{pages} pages written, {doc.NumberOfPages} read");
+        });
         Check("archives", () =>
         {
             var folder = Directory.CreateDirectory(Path.Combine(work, "files")).FullName;

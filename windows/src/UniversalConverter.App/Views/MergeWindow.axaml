@@ -1,0 +1,103 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:UniversalConverter.App.ViewModels"
+        x:Class="UniversalConverter.App.Views.MergeWindow"
+        x:DataType="vm:MergeViewModel"
+        Title="Merge files" Width="540" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner" Icon="/Assets/app.ico">
+  <StackPanel Margin="24,20" Spacing="16">
+    <TextBlock Text="Merge files" FontSize="22" FontWeight="SemiBold" />
+
+    <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding HasSeveralGroups}">
+      <TextBlock Text="Merge" VerticalAlignment="Center" Opacity="0.75" />
+      <ComboBox ItemsSource="{Binding GroupNames}" SelectedIndex="{Binding GroupIndex}" IsEnabled="{Binding IsSetup}" MinWidth="160" />
+    </StackPanel>
+    <TextBlock Text="{Binding Title}" Opacity="0.75" />
+
+    <StackPanel Spacing="6">
+      <TextBlock Text="Order" FontWeight="SemiBold" />
+      <Border Classes="card" Padding="4" MaxHeight="250">
+        <ScrollViewer>
+          <ItemsControl ItemsSource="{Binding Files}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:MergeFileRow">
+                <Grid ColumnDefinitions="28,*,Auto,Auto,Auto" Margin="4,2">
+                  <TextBlock Grid.Column="0" Text="{Binding Position}" Opacity="0.6" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  <Button Grid.Column="2" Content="▲" Padding="8,4" Click="OnUp" IsEnabled="{Binding CanMoveUp}" ToolTip.Tip="Move up" />
+                  <Button Grid.Column="3" Content="▼" Padding="8,4" Click="OnDown" IsEnabled="{Binding CanMoveDown}" ToolTip.Tip="Move down" />
+                  <Button Grid.Column="4" Content="✕" Padding="8,4" Click="OnRemove" IsEnabled="{Binding CanRemove}" ToolTip.Tip="Leave this file out" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Border>
+      <TextBlock Classes="caption" Text="Use the arrows to change the order. The merged file follows this order." />
+    </StackPanel>
+
+    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="10" IsEnabled="{Binding IsSetup}">
+      <TextBlock Grid.Row="0" Text="Save as" VerticalAlignment="Center" Opacity="0.75" />
+      <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding Targets}" SelectedItem="{Binding SelectedTarget}" HorizontalAlignment="Stretch">
+        <ComboBox.ItemTemplate>
+          <DataTemplate><TextBlock Text="{Binding Label}" /></DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <TextBlock Grid.Row="1" Text="Pictures on" VerticalAlignment="Center" Opacity="0.75" IsVisible="{Binding IsPdf}" />
+      <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{x:Static vm:MergeViewModel.PageSizeTitles}" SelectedIndex="{Binding PageSizeIndex}"
+                HorizontalAlignment="Stretch" IsVisible="{Binding IsPdf}" />
+      <TextBlock Grid.Row="2" Text="Name" VerticalAlignment="Center" Opacity="0.75" />
+      <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Name}" />
+    </Grid>
+
+    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasMissingTool}">
+      <TextBlock Foreground="#C77700" VerticalAlignment="Center" Text="{Binding MissingTool, StringFormat='{}{0} is not installed. Install it from Settings and tools.'}" />
+      <Button Grid.Column="1" Content="Open tools" Click="OnOpenTools" />
+    </Grid>
+
+    <Border Height="1" Background="#30808080" />
+
+    <!-- Setup. -->
+    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" IsVisible="{Binding IsSetup}">
+      <Button Content="Cancel" Click="OnClose" MinWidth="90" HorizontalContentAlignment="Center" />
+      <Button Classes="accent" Content="Merge" Command="{Binding StartCommand}" IsEnabled="{Binding CanStart}" MinWidth="90" HorizontalContentAlignment="Center" />
+    </StackPanel>
+
+    <!-- Running. -->
+    <StackPanel Spacing="6" IsVisible="{Binding IsRunning}">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+        <ProgressBar Minimum="0" Maximum="100" Value="{Binding Percent}" IsIndeterminate="{Binding IsIndeterminate}" />
+        <TextBlock Grid.Column="1" Text="{Binding PercentText}" IsVisible="{Binding HasPercent}" FontSize="12" />
+      </Grid>
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding ProgressMessage}" Classes="caption" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Content="Cancel" Command="{Binding CancelCommand}" />
+      </Grid>
+    </StackPanel>
+
+    <!-- Finished. -->
+    <StackPanel Spacing="8" IsVisible="{Binding IsFinished}">
+      <TextBlock Foreground="SeaGreen" FontWeight="SemiBold" Text="Saved" />
+      <TextBlock Text="{Binding ResultPath}" Classes="caption" TextTrimming="CharacterEllipsis" />
+      <ItemsControl ItemsSource="{Binding Notes}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" Foreground="#C77700" TextWrapping="Wrap" FontSize="12" /></DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+        <Button Content="Show in folder" Click="OnReveal" />
+        <Button Classes="accent" Content="Done" Click="OnClose" MinWidth="90" HorizontalContentAlignment="Center" />
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Failed. -->
+    <StackPanel Spacing="8" IsVisible="{Binding IsFailed}">
+      <TextBlock Foreground="#C42B1C" FontWeight="SemiBold" Text="The merge did not finish" />
+      <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" Opacity="0.8" />
+      <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+        <Button Content="Close" Click="OnClose" />
+        <Button Classes="accent" Content="Change and try again" Command="{Binding TryAgainCommand}" />
+      </StackPanel>
+    </StackPanel>
+  </StackPanel>
+</Window>

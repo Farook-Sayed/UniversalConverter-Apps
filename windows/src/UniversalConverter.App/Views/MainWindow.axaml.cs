@@ -70,6 +70,14 @@ public partial class MainWindow : Window
         if (ItemOf(sender) is { } item) await new AdjustWindow(item).ShowDialog(this);
     }
 
+    private async void OnMerge(object? sender, RoutedEventArgs e)
+    {
+        if (Model?.MakeMergeSession() is not { } session) return;
+        var window = new MergeWindow(session);
+        await window.ShowDialog(this);
+        if (window.OpenToolsRequested) await ShowSettings(2);
+    }
+
     private async void OnOpenSettings(object? sender, RoutedEventArgs e) => await ShowSettings(0);
     private async void OnOpenTools(object? sender, RoutedEventArgs e) => await ShowSettings(2);
 
