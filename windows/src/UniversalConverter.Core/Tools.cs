@@ -183,63 +183,80 @@ public sealed class ToolFeature
     ];
 }
 
-/// <summary>Installs a feature with winget, then runs any extra steps it needs. One install at a time.</summary>
+/// <summary>Installs a feature with winget, then runs any extra steps it needs.
+///
+/// Several features can be installed at the same time. Windows runs one installer at a time, so the winget steps take
+/// turns. Everything else (the font tools, the model download, the TypeScript install) only uses the network, so it runs
+/// while other tools install.</summary>
 public static class ToolInstaller
 {
     // winget reports these when there is nothing to do, which is a success for this purpose.
     private static readonly HashSet<int> AlreadyDone = [unchecked((int)0x8A15002B), unchecked((int)0x8A150061), unchecked((int)0x8A15010D)];
 
     public static async Task<List<string>> InstallAsync(ToolFeature feature, ToolLocator tools, string codeModel,
-                                                        Action<string> progress, CancellationToken cancellation = default)
+                                                        Action<string> progress, CancellationToken cancellation = default,
+                                                        InstallCoordinator? coordinator = null)
     {
-        var log = new List<string>();
+        coordinator ??= InstallCoordinator.Shared;
+        var log = new SafeLog();
         if (feature.Packages.Length > 0)
         {
             var winget = tools.Locate("winget") ?? throw ConversionException.ToolNotFound(
                 "winget, the Windows package manager. Install \"App Installer\" from the Microsoft Store, then try again");
             foreach (var package in feature.Packages)
             {
-                progress($"Installing {package}…");
-                await RunAsync(winget, ["install", "--id", package, "-e", "--silent",
-                                        "--accept-package-agreements", "--accept-source-agreements"],
-                               "winget", log, cancellation, allowed: AlreadyDone);
+                // winget works out and downloads the package itself, so the whole step takes its turn. Skipping the Microsoft
+                // Store as a source saves a search that every install would otherwise make.
+                await InstallCoordinator.WithSlotAsync(coordinator.Installs, async () =>
+                {
+                    progress($"Installing {package}…");
+                    await RunAsync(winget, ["install", "--id", package, "-e", "--source", "winget", "--silent", "--disable-interactivity",
+                                            "--accept-package-agreements", "--accept-source-agreements"],
+                                   "winget", log, cancellation, allowed: AlreadyDone,
+                                   onOutput: line => { if (WingetProgress.Describe(line) is { } step) progress(step); });
+                }, onWait: () => progress("Waiting for another install to finish…"), cancellation);
             }
         }
         foreach (var extra in feature.ExtraSteps)
         {
+            cancellation.ThrowIfCancellationRequested();
             switch (extra)
             {
                 case ToolFeature.Extra.FontEnvironment:
                     progress("Setting up the font tools…");
-                    await SetUpFontsAsync(tools, log, cancellation);
+                    await InstallCoordinator.WithSlotAsync(coordinator.Downloads, () => SetUpFontsAsync(tools, log, cancellation), cancellation: cancellation);
                     break;
                 case ToolFeature.Extra.CodeModel:
                     progress("Downloading the code model. This can take a while…");
-                    await PullModelAsync(codeModel, tools, log, cancellation);
+                    await PullModelAsync(codeModel, tools, log.Lines, cancellation, coordinator);
                     break;
                 case ToolFeature.Extra.TypeScript:
                     progress("Installing TypeScript…");
                     var npm = tools.Locate("npm") ?? throw ConversionException.ToolNotFound("npm, which comes with Node.js");
-                    await RunAsync(npm, ["install", "-g", "typescript"], "npm", log, cancellation);
+                    await InstallCoordinator.WithSlotAsync(coordinator.Downloads,
+                        () => RunAsync(npm, ["install", "-g", "typescript"], "npm", log, cancellation), cancellation: cancellation);
                     break;
             }
         }
-        return log;
+        return log.Lines;
     }
 
-    /// <summary>Downloads one code model through Ollama. The model list in Settings uses this.</summary>
+    /// <summary>Downloads one code model through Ollama. The model list in Settings uses this. It takes one of the download
+    /// slots, so it runs next to installs and other downloads.</summary>
     public static async Task<List<string>> PullModelAsync(string name, ToolLocator tools, List<string>? log = null,
-                                                          CancellationToken cancellation = default)
+                                                          CancellationToken cancellation = default, InstallCoordinator? coordinator = null)
     {
-        log ??= [];
+        coordinator ??= InstallCoordinator.Shared;
+        var lines = new SafeLog();
         var ollama = tools.Locate("ollama") ?? throw ConversionException.ToolNotFound("Ollama");
         if (!await new OllamaClient(model: name).EnsureRunningAsync(tools, cancellation: cancellation))
             throw ConversionException.OllamaUnavailable("Could not start Ollama. Open the Ollama app, then try again.");
-        await RunAsync(ollama, ["pull", name], "Ollama", log, cancellation);
-        return log;
+        await InstallCoordinator.WithSlotAsync(coordinator.Downloads, () => RunAsync(ollama, ["pull", name], "Ollama", lines, cancellation), cancellation: cancellation);
+        log?.AddRange(lines.Lines);
+        return lines.Lines;
     }
 
-    private static async Task SetUpFontsAsync(ToolLocator tools, List<string> log, CancellationToken cancellation)
+    private static async Task SetUpFontsAsync(ToolLocator tools, SafeLog log, CancellationToken cancellation)
     {
         var python = tools.Locate("python3.12", "python3", "python") ?? throw ConversionException.ToolNotFound("Python 3.12");
         if (!File.Exists(ToolFeature.FontEnvironmentPython))
@@ -247,12 +264,20 @@ public static class ToolInstaller
         await RunAsync(ToolFeature.FontEnvironmentPython, ["-m", "pip", "install", "fonttools", "brotli"], "pip", log, cancellation);
     }
 
-    private static async Task RunAsync(string executable, string[] arguments, string name, List<string> log,
-                                       CancellationToken cancellation, HashSet<int>? allowed = null)
+    private static async Task RunAsync(string executable, string[] arguments, string name, SafeLog log,
+                                       CancellationToken cancellation, HashSet<int>? allowed = null, Action<string>? onOutput = null)
     {
         log.Add($"{name}: {Path.GetFileName(executable)} {string.Join(' ', arguments)}");
-        var result = await ProcessRunner.RunAsync(executable, arguments, cancellation: cancellation);
+        var result = await ProcessRunner.RunAsync(executable, arguments, cancellation: cancellation, onOutput: onOutput);
         if (result.ExitCode != 0 && allowed?.Contains(result.ExitCode) != true)
             throw ConversionException.ToolFailed(name, result.ExitCode, Converter.LastLines(result.StdErr + result.StdOut));
+    }
+
+    /// <summary>The lines an install writes to its log. Several installs run at once, so adding a line is thread safe.</summary>
+    private sealed class SafeLog
+    {
+        private readonly List<string> _lines = [];
+        public void Add(string line) { lock (_lines) _lines.Add(line); }
+        public List<string> Lines { get { lock (_lines) return _lines.ToList(); } }
     }
 }

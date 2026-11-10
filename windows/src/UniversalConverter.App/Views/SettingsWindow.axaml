@@ -56,6 +56,8 @@
                       <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
                         <Button Content="Download" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
                         <Button Classes="accent" Content="Use this one" Command="{Binding UseCommand}" IsVisible="{Binding CanUse}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                        <Button Content="Remove…" Command="{Binding RemoveCommand}" IsVisible="{Binding IsInstalled}" IsEnabled="{Binding CanRemove}"
+                                ToolTip.Tip="Delete this model from the PC" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
                       </StackPanel>
                     </Grid>
                   </Border>
@@ -70,7 +72,7 @@
         <ScrollViewer>
           <StackPanel Margin="14,16" Spacing="14">
             <TextBlock TextWrapping="Wrap" Opacity="0.8"
-                       Text="Pictures, PDF pages, archives, 3D models and text recognition work with nothing to install. Everything else uses a free program, and each one is installed with a single click using the Windows Package Manager (winget). Windows may ask you to allow the install." />
+                       Text="Pictures, PDF pages, archives, 3D models and text recognition work with nothing to install. Everything else uses a free program, and each one is installed with a single click using the Windows Package Manager (winget). You can start several at once: they download together, and Windows installs them one after another. Windows may ask you to allow an install." />
             <ItemsControl ItemsSource="{Binding ToolRows}">
               <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
@@ -85,12 +87,18 @@
                       </StackPanel>
                       <Button Grid.Column="1" Classes="accent" Content="Install" Command="{Binding InstallCommand}" IsEnabled="{Binding CanInstall}"
                               VerticalAlignment="Center" MinWidth="90" HorizontalContentAlignment="Center" IsVisible="{Binding !IsInstalled}" />
+                      <Button Grid.Column="1" Content="Remove…" Command="{Binding RemoveCommand}" IsEnabled="{Binding CanRemove}"
+                              ToolTip.Tip="Remove this tool and delete its files"
+                              VerticalAlignment="Center" MinWidth="90" HorizontalContentAlignment="Center" IsVisible="{Binding IsInstalled}" />
                     </Grid>
                   </Border>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <Button Content="Check again" Click="OnRecheck" HorizontalAlignment="Left" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Button Classes="accent" Content="Install everything" Command="{Binding InstallAllCommand}" IsVisible="{Binding CanInstallAll}" />
+              <Button Content="Check again" Click="OnRecheck" />
+            </StackPanel>
           </StackPanel>
         </ScrollViewer>
       </TabItem>

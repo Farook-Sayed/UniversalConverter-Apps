@@ -27,6 +27,10 @@ Download `UniversalConverter.exe` and double-click it. It is one file, about 90 
 
 Open **Settings and tools**, then **Tools**. Each group installs with one click through the Windows Package Manager (winget). Windows may ask you to allow it.
 
+Several tools can be installed at the same time, or all at once with **Install everything**. Windows runs one installer at a time for the whole PC, so the installs take turns, but model downloads, the font tools and TypeScript download while other tools install, and each row shows its own step and percentage.
+
+An installed group has a **Remove…** button. It shows what will be removed, asks you to confirm, and then removes it with winget. A downloaded code model has a **Remove…** button too, in the Code translation tab, and it deletes the model through Ollama. winget removes programs one at a time, so a removal takes its turn with installs. Python, Node.js, Go and Java are general programming tools, so the confirmation warns you before removing them. Programs that winget does not list are left alone.
+
 | Group | Program | Adds |
 |---|---|---|
 | Video, audio and subtitles | FFmpeg | MP4, MKV, WebM, WMV, FLV, 3GP, MOV, AVI, GIF, MP3, WAV, FLAC, M4A, Ogg, SRT, VTT, ASS |
@@ -73,4 +77,4 @@ The same code runs on macOS for development (`dotnet run --project src/Universal
 - The winget package ids and the Windows install folders were written from documentation and have not been run.
 - Code over 256 KB is refused. Longer files are split, translated part by part and joined.
 - Translated code is checked for syntax. It is not tested for behaviour.
-- Two conversions run at a time. Other files wait in the queue.
+- Conversions run side by side: two to four at a time, depending on the processor cores (one for every three cores). Each FFmpeg run and each picture conversion gets its share of the cores, so they do not fight over them. Other files wait in the queue.

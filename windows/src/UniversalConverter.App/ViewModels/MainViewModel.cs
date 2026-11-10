@@ -8,7 +8,8 @@ namespace UniversalConverter.App.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
-    private readonly SemaphoreSlim _gate = new(2);
+    /// <summary>How many conversions run at once. It follows this PC's processor cores.</summary>
+    private readonly SemaphoreSlim _gate = new(ResourcePlan.ParallelConversions());
     private readonly FileDetector _detector = new();
 
     public ToolLocator Tools { get; } = new();

@@ -25,7 +25,8 @@ public partial class ToolRowViewModel : ObservableObject
     public string Title => Feature.Title;
     public string Detail => Feature.Detail;
     public string SizeText => Feature.Size;
-    public bool CanInstall => !IsInstalled && !IsWorking && !_owner.IsInstalling;
+    public bool CanInstall => !IsInstalled && !IsWorking;
+    public bool CanRemove => IsInstalled && !IsWorking;
     public string StatusText => IsWorking ? Status : IsInstalled ? "Installed" : "Not installed";
 
     public void Update()
@@ -34,12 +35,15 @@ public partial class ToolRowViewModel : ObservableObject
         OnPropertyChanged(nameof(CanInstall)); OnPropertyChanged(nameof(StatusText));
     }
 
-    partial void OnIsWorkingChanged(bool value) { OnPropertyChanged(nameof(CanInstall)); OnPropertyChanged(nameof(StatusText)); }
+    partial void OnIsWorkingChanged(bool value) { OnPropertyChanged(nameof(CanInstall)); OnPropertyChanged(nameof(CanRemove)); OnPropertyChanged(nameof(StatusText)); _owner.RowsChanged(); }
     partial void OnStatusChanged(string value) => OnPropertyChanged(nameof(StatusText));
-    partial void OnIsInstalledChanged(bool value) { OnPropertyChanged(nameof(CanInstall)); OnPropertyChanged(nameof(StatusText)); }
+    partial void OnIsInstalledChanged(bool value) { OnPropertyChanged(nameof(CanInstall)); OnPropertyChanged(nameof(CanRemove)); OnPropertyChanged(nameof(StatusText)); _owner.RowsChanged(); }
 
     [RelayCommand]
     private Task Install() => _owner.InstallAsync(this);
+
+    [RelayCommand]
+    private Task Remove() => _owner.RemoveAsync(this);
 }
 
 public partial class ModelRowViewModel : ObservableObject
@@ -50,6 +54,7 @@ public partial class ModelRowViewModel : ObservableObject
     [ObservableProperty] private bool _isInstalled;
     [ObservableProperty] private bool _isSelected;
     [ObservableProperty] private bool _isWorking;
+    public bool IsRemoving { get; set; }
 
     public ModelRowViewModel(SettingsViewModel owner, CodeModel model) { _owner = owner; Model = model; Update(); }
 
@@ -59,7 +64,8 @@ public partial class ModelRowViewModel : ObservableObject
     public bool DoesNotFit => !Model.FitsThisPc;
     public bool CanDownload => !IsInstalled && !IsWorking;
     public bool CanUse => IsInstalled && !IsSelected;
-    public string StatusText => IsWorking ? "Downloading…" : IsSelected ? "In use" : IsInstalled ? "Downloaded" : "Not downloaded";
+    public bool CanRemove => IsInstalled && !IsWorking;
+    public string StatusText => IsWorking ? (IsRemoving ? "Removing…" : "Downloading…") : IsSelected ? "In use" : IsInstalled ? "Downloaded" : "Not downloaded";
 
     public void Update()
     {
@@ -70,7 +76,7 @@ public partial class ModelRowViewModel : ObservableObject
 
     private void Refresh()
     {
-        OnPropertyChanged(nameof(CanDownload)); OnPropertyChanged(nameof(CanUse)); OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(CanDownload)); OnPropertyChanged(nameof(CanUse)); OnPropertyChanged(nameof(CanRemove)); OnPropertyChanged(nameof(StatusText));
     }
 
     partial void OnIsInstalledChanged(bool value) => Refresh();
@@ -79,6 +85,7 @@ public partial class ModelRowViewModel : ObservableObject
 
     [RelayCommand] private Task Download() => _owner.DownloadModelAsync(this);
     [RelayCommand] private void Use() => _owner.UseModel(this);
+    [RelayCommand] private Task Remove() => _owner.RemoveModelAsync(this);
 }
 
 public partial class SettingsViewModel : ObservableObject
@@ -93,8 +100,25 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string _outputFolder;
     [ObservableProperty] private int _pageOutputIndex;
     [ObservableProperty] private int _repairIndex;
-    [ObservableProperty] private bool _isInstalling;
     [ObservableProperty] private string _message = "";
+
+    /// <summary>For tests: replaces the real installer, so rows can be run without installing anything.</summary>
+    public Func<ToolFeature, Action<string>, CancellationToken, Task>? InstallOverride { get; set; }
+
+    /// <summary>The tools that are not installed and not being installed right now.</summary>
+    public bool CanInstallAll => ToolRows.Count(r => r.CanInstall) > 1;
+    public bool AnyInstalling => ToolRows.Any(r => r.IsWorking) || ModelRows.Any(r => r.IsWorking);
+
+    internal void RowsChanged() { OnPropertyChanged(nameof(CanInstallAll)); OnPropertyChanged(nameof(AnyInstalling)); }
+
+    /// <summary>Results of installs that finish near each other are all kept, one per line.</summary>
+    private void AddMessage(string text)
+    {
+        // Two installs can finish at the same moment. Without the lock, each reads the old text and one result is lost.
+        lock (_messageLock) Message = string.IsNullOrEmpty(Message) ? text : Message + "\n" + text;
+    }
+
+    private readonly object _messageLock = new();
 
     public SettingsViewModel(MainViewModel main)
     {
@@ -124,7 +148,6 @@ public partial class SettingsViewModel : ObservableObject
         AppSettings.Current.Save();
     }
 
-    partial void OnIsInstallingChanged(bool value) { foreach (var row in ToolRows) row.Update(); }
 
     public void RefreshTools()
     {
@@ -133,42 +156,111 @@ public partial class SettingsViewModel : ObservableObject
         _main.RefreshAll();
     }
 
+    /// <summary>Installs one tool. Any number can run at once: their downloads overlap, and the Windows installers take turns.</summary>
     public async Task InstallAsync(ToolRowViewModel row)
     {
-        if (IsInstalling) return;
-        IsInstalling = true;
+        if (row.IsWorking || row.IsInstalled) return;
         row.IsWorking = true;
-        Message = "";
+        row.Status = "Starting…";
+        void Step(string text) => Dispatcher.UIThread.Post(() => { if (row.IsWorking) row.Status = text; });
         try
         {
-            await ToolInstaller.InstallAsync(row.Feature, Tools, CodeModels.Selected,
-                text => Dispatcher.UIThread.Post(() => row.Status = text));
-            Message = $"{row.Title} is installed.";
+            if (InstallOverride is { } fake) await fake(row.Feature, Step, CancellationToken.None);
+            else await ToolInstaller.InstallAsync(row.Feature, Tools, CodeModels.Selected, Step);
+            AddMessage($"{row.Title} is installed.");
         }
         catch (Exception ex)
         {
-            Message = ex is ConversionException ? ex.Message : $"The install did not finish. {ex.Message}";
+            AddMessage(ex is ConversionException ? ex.Message : $"{row.Title} could not be installed. {ex.Message}");
         }
         finally
         {
             row.IsWorking = false;
-            IsInstalling = false;
             RefreshTools();
         }
     }
 
-    public async Task DownloadModelAsync(ModelRowViewModel row)
+    /// <summary>Asks the user a yes or no question. The window sets this; a test sets a fake. Without it, nothing is removed.</summary>
+    public Func<string, string, Task<bool>>? Confirm { get; set; }
+
+    /// <summary>For tests: replace the plan and the removal, so nothing is uninstalled.</summary>
+    public Func<ToolFeature, Task<RemovalPlan>>? PlanOverride { get; set; }
+    public Func<ToolFeature, RemovalPlan, Action<string>, Task>? UninstallOverride { get; set; }
+    public Func<string, Task>? RemoveModelOverride { get; set; }
+
+    /// <summary>Removes one tool group after showing what goes and asking. A tool that winget did not install is not touched.</summary>
+    public async Task RemoveAsync(ToolRowViewModel row)
     {
+        if (row.IsWorking || !row.IsInstalled) return;
         row.IsWorking = true;
-        Message = "";
+        row.Status = "Checking…";
         try
         {
-            await ToolInstaller.PullModelAsync(row.Model.Name, Tools);
-            Message = $"{row.Title} is downloaded.";
+            var plan = PlanOverride is { } fake ? await fake(row.Feature) : await ToolRemoval.PlanAsync(row.Feature, Tools);
+            if (plan.IsEmpty)
+            {
+                AddMessage($"{row.Title} was not installed by winget, so Universal Converter cannot remove it. Remove it the way you installed it.");
+                return;
+            }
+            if (Confirm is null || !await Confirm($"Remove {row.Title}?", plan.Confirmation)) return;
+            row.Status = "Removing…";
+            void Step(string text) => Dispatcher.UIThread.Post(() => { if (row.IsWorking) row.Status = text; });
+            if (UninstallOverride is { } uninstall) await uninstall(row.Feature, plan, Step);
+            else await ToolRemoval.UninstallAsync(row.Feature, Tools, plan, Step);
+            AddMessage($"{row.Title} was removed.");
         }
         catch (Exception ex)
         {
-            Message = ex is ConversionException ? ex.Message : $"The download did not finish. {ex.Message}";
+            AddMessage(ex is ConversionException ? ex.Message : $"{row.Title} could not be removed. {ex.Message}");
+        }
+        finally
+        {
+            row.IsWorking = false;
+            RefreshTools();
+        }
+    }
+
+    /// <summary>Deletes one downloaded code model after asking.</summary>
+    public async Task RemoveModelAsync(ModelRowViewModel row)
+    {
+        if (row.IsWorking || !row.IsInstalled) return;
+        if (Confirm is null || !await Confirm($"Remove {row.Title}?", $"This deletes the downloaded model ({row.Model.Download}). You can download it again from here.")) return;
+        row.IsRemoving = true;
+        row.IsWorking = true;
+        try
+        {
+            if (RemoveModelOverride is { } fake) await fake(row.Model.Name);
+            else await ToolRemoval.RemoveModelAsync(row.Model.Name, Tools);
+            AddMessage($"{row.Title} was removed.");
+        }
+        catch (Exception ex)
+        {
+            AddMessage(ex is ConversionException ? ex.Message : $"{row.Title} could not be removed. {ex.Message}");
+        }
+        finally
+        {
+            row.IsRemoving = false;
+            row.IsWorking = false;
+            RefreshTools();
+        }
+    }
+
+    /// <summary>Starts every missing tool together.</summary>
+    [RelayCommand]
+    private Task InstallAll() => Task.WhenAll(ToolRows.Where(r => r.CanInstall).ToList().Select(InstallAsync));
+
+    public async Task DownloadModelAsync(ModelRowViewModel row)
+    {
+        if (row.IsWorking) return;
+        row.IsWorking = true;
+        try
+        {
+            await ToolInstaller.PullModelAsync(row.Model.Name, Tools);
+            AddMessage($"{row.Title} is downloaded.");
+        }
+        catch (Exception ex)
+        {
+            AddMessage(ex is ConversionException ? ex.Message : $"The download of {row.Title} did not finish. {ex.Message}");
         }
         finally
         {

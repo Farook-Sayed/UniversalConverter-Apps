@@ -543,7 +543,10 @@ public class ToolConversionTests
     public async Task AToolBackedConversionProducesTheRightFormat(string sample, string target)
     {
         using var temp = new TempFolder();
-        var result = await TryConvert(sample, target, temp);
+        ConversionResult? result;
+        try { result = await TryConvert(sample, target, temp); }
+        // A program is found but one of its parts is not set up, such as Python without the font module.
+        catch (ConversionException ex) when (ex.Message.Contains("is not installed")) { throw new SkipException(ex.Message); }
         if (result is null) throw new SkipException($"The tool for {sample} to {target} is not installed");
         var found = new FileDetector().Detect(result.OutputPath);
         Assert.True(new FileInfo(result.OutputPath).Length > 0);

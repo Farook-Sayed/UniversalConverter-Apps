@@ -176,6 +176,8 @@ public sealed partial class Converter
         var duration = await MediaDurationAsync(input.Path, job.Cancellation);
         var args = new List<string> { "-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-y", "-i", input.Path };
         args.AddRange(FfmpegOptions(target.Id));
+        // Conversions run side by side, so each gets its share of the cores instead of every one asking for all of them.
+        args.AddRange(["-threads", ResourcePlan.ThreadsPerConversion().ToString()]);
         args.Add(output);
         job.Log.Add("ffmpeg " + string.Join(' ', args));
         var result = await ProcessRunner.RunAsync(tool, args, cancellation: job.Cancellation, onOutput: line =>

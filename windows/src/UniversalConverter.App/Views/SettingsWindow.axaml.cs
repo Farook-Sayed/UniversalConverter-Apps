@@ -12,7 +12,10 @@ public partial class SettingsWindow : Window
     public SettingsWindow(MainViewModel main, int tab = 0)
     {
         InitializeComponent();
-        DataContext = new SettingsViewModel(main);
+        var model = new SettingsViewModel(main);
+        // Removing deletes files, so the window asks first.
+        model.Confirm = (title, message) => ConfirmWindow.AskAsync(this, title, message, "Remove and delete files", "Keep it");
+        DataContext = model;
         this.FindControl<TabControl>("Tabs")!.SelectedIndex = tab;
     }
 

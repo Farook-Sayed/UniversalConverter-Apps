@@ -12,6 +12,7 @@ internal static class Program
         try
         {
             Converter.RemoveStaleWork();
+            ResourcePlan.ApplyPictureThreads();
 #if WINDOWS
             ToolLocator.OcrAvailable = WindowsOcr.IsSupported;
             if (ToolLocator.OcrAvailable) Ocr.Engine = new WindowsOcr();
