@@ -90,6 +90,17 @@ The original is never changed. If nothing would improve, the result is an exact 
 
 Check the result for mistakes. Printed text reads best. Handwriting and unusual fonts read less well. Columns are kept together, but a table is read column by column, so its rows do not stay lined up.
 
+## 4e. Merging files
+
+When the list has two or more files of the same kind, a **Merge** button appears in the toolbar (also **Convert → Merge Files…**, ⇧⌘M). It opens a window where you choose the order, the format and the name, and then joins the files into one:
+
+- **Pictures and PDFs → one PDF.** Mixed pictures and PDFs are fine. Each picture becomes a page, and every page of each PDF is kept. Pictures go on A4 or US Letter pages, turned to fit a wide picture, or each page takes the size of its picture. This needs nothing to install.
+- **Audio → one audio file** (MP3, WAV, FLAC, M4A or Ogg), even when the files differ in format or sample rate. Needs FFmpeg.
+- **Videos → one video** (MP4, MKV, WebM or MOV), scaled to the first video's size. Needs FFmpeg. If one video has no sound, the merged video has none, and the app says so.
+- **Documents → one document.** Markdown, text, HTML, Word, OpenDocument and RTF files become one Word, Markdown, text, HTML, RTF or EPUB file. Needs Pandoc. Files of different kinds are joined as Markdown, so some layout may be lost.
+
+Drag a file, or use the arrows, to change the order. Leave a file out with the ✕ (a merge needs at least two). A password-protected PDF or a picture that cannot be read stops the merge with a message that names the file. Merging does not change the files in the list, and the result never replaces an existing file.
+
 ## 5. What converts to what
 
 | From | To |

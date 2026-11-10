@@ -111,6 +111,12 @@ struct AppCommands: Commands {
             .keyboardShortcut("r", modifiers: [.command, .shift])
             .disabled(!model.hasConvertibleItems)
 
+            Button("Merge Files…") {
+                NotificationCenter.default.post(name: .fcMergeFiles, object: nil)
+            }
+            .keyboardShortcut("m", modifiers: [.command, .shift])
+            .disabled(!model.canMerge)
+
             Divider()
 
             Button("Clear Finished") {

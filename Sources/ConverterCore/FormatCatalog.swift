@@ -303,6 +303,7 @@ public enum FormatCatalog {
         case "txt": return input ? "markdown" : "plain"
         case "html": return "html"
         case "docx": return "docx"
+        case "odt": return "odt"
         case "rtf": return "rtf"
         case "epub": return "epub"
         case "ipynb": return input ? "ipynb" : nil

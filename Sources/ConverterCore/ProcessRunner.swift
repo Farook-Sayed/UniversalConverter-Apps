@@ -74,6 +74,11 @@ public enum ProcessRunner {
         if box.timedOut {
             throw ConversionError.timedOut(tool: executable.lastPathComponent)
         }
+        // A program that was stopped because the task was cancelled ends with an error code. That is the user's choice,
+        // not a failure of the program, so it is reported as a cancellation.
+        if Task.isCancelled, exitCode != 0 {
+            throw CancellationError()
+        }
         // Decoded leniently: a tool's message may contain bytes that are not valid UTF-8.
         let stdout = String(decoding: (try? Data(contentsOf: outURL)) ?? Data(), as: UTF8.self)
         let stderr = String(decoding: (try? Data(contentsOf: errURL)) ?? Data(), as: UTF8.self)

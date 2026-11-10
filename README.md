@@ -106,6 +106,8 @@ docs/                    Images for this page.
 
 More: [GUIDE.md](GUIDE.md) (using the app), [DESIGN.md](DESIGN.md) (design rules), [CONTRIBUTING.md](CONTRIBUTING.md).
 
+Merging: two or more pictures and PDFs can be joined into one PDF, audio files into one audio file, videos into one video, and text documents into one document, with the order, format and name of your choice. See [GUIDE.md](GUIDE.md), section 4e.
+
 ## Known limits
 
 - Code over 256 KB is refused. Longer files are split at their top-level definitions, translated part by part and joined, so they take longer. Java output is one class named after the file, and it is checked with javac. A long Java class translated to another language becomes top-level functions and variables, so check how they fit together.

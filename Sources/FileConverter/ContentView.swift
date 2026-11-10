@@ -8,6 +8,7 @@ struct ContentView: View {
     @Environment(\.openSettings) private var openSettings
     @State private var isTargeted = false
     @State private var selection = Set<UUID>()
+    @State private var merge: MergeSession?
 
     var body: some View {
         content
@@ -24,6 +25,8 @@ struct ContentView: View {
             .navigationTitle("Universal Converter")
             .navigationSubtitle(subtitle)
             .toolbar { toolbar }
+            .sheet(item: $merge) { session in MergeSheet(session: session) }
+            .onReceive(NotificationCenter.default.publisher(for: .fcMergeFiles)) { _ in merge = model.makeMergeSession() }
             .animation(.snappy, value: model.items.map(\.id))
             .onReceive(NotificationCenter.default.publisher(for: .fcOpenSettings)) { _ in
                 openSettings()
@@ -90,6 +93,18 @@ struct ContentView: View {
         }
         // Actions that need files only appear once there are files, as in Apple's own apps.
         if model.hasItems {
+            // Merging needs two files of the same kind, so the button appears when the queue has them.
+            if model.canMerge {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        merge = model.makeMergeSession()
+                    } label: {
+                        Label("Merge", systemImage: "square.on.square")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .help("Join several files into one (⇧⌘M)")
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     model.convertAll()

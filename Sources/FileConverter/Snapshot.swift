@@ -6,6 +6,8 @@ extension Notification.Name {
     static let fcOpenSettings = Notification.Name("FCOpenSettings")
     /// Selects a Settings tab by name. Used by the snapshot tool.
     static let fcSelectSettingsTab = Notification.Name("FCSelectSettingsTab")
+    /// Opens the merge window. Used by the Convert menu.
+    static let fcMergeFiles = Notification.Name("FCMergeFiles")
 }
 
 /// Developer tool: saves pictures of the app's own windows, so the design can be checked without a screen
@@ -57,6 +59,23 @@ enum SnapshotRunner {
                 try? await Task.sleep(nanoseconds: 400_000_000)
                 save("queue-adjusted\(suffix)", in: output, matching: { $0.title == "Universal Converter" })
             }
+        }
+
+        // The merge window, with the sample pictures and PDF in the queue.
+        if let session = model.makeMergeSession() {
+            let window = NSWindow(contentViewController: NSHostingController(
+                rootView: MergeSheet(session: session).environment(model)))
+            window.title = "Merge"
+            window.isReleasedWhenClosed = false
+            window.makeKeyAndOrderFront(nil)
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            save("merge\(suffix)", in: output, matching: { $0.title == "Merge" })
+            // With FC_SNAPSHOT_HOLD set the window stays up, so a real screen capture can be taken of it.
+            if let hold = env["FC_SNAPSHOT_HOLD"], let seconds = Double(hold) {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            }
+            window.close()
+            try? await Task.sleep(nanoseconds: 300_000_000)
         }
 
         NotificationCenter.default.post(name: .fcOpenSettings, object: nil)

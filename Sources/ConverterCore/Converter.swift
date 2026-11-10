@@ -117,7 +117,7 @@ public struct Converter: Sendable {
     }
 
     /// Tells the caller what is happening. A fraction is given only when the work can be measured.
-    private func report(_ message: String, fraction: Double? = nil) {
+    func report(_ message: String, fraction: Double? = nil) {
         progress(ConversionProgress(message, fraction: fraction))
     }
 
@@ -280,7 +280,7 @@ public struct Converter: Sendable {
     }
 
     /// The length of a media file in seconds. Nil when ffprobe is missing or cannot read the file.
-    private func mediaDuration(_ url: URL) async -> Double? {
+    func mediaDuration(_ url: URL) async -> Double? {
         guard let probe = tools.locate(["ffprobe"]),
               let result = try? await ProcessRunner.run(probe, arguments: [
                   "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", url.path,
@@ -290,7 +290,7 @@ public struct Converter: Sendable {
 
     /// True when the file has at least one audio stream. Uses ffprobe, which comes with FFmpeg.
     /// If ffprobe is missing, returns true and lets FFmpeg report any problem.
-    private func hasAudio(_ url: URL) async throws -> Bool {
+    func hasAudio(_ url: URL) async throws -> Bool {
         guard let probe = tools.locate(["ffprobe"]) else { return true }
         let result = try await ProcessRunner.run(probe, arguments: [
             "-v", "error", "-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0", url.path,

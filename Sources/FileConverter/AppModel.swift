@@ -377,6 +377,19 @@ final class AppModel {
         }
     }
 
+    // MARK: Merge
+
+    /// What the files in the queue could be merged into. Empty until two files of the same kind are in the queue.
+    var mergeGroups: [MergeGroup] { MergePlanner.groups(for: items.map(\.file)) }
+    var canMerge: Bool { !mergeGroups.isEmpty }
+
+    /// A merge window for the files in the queue, or nil when nothing can be merged.
+    func makeMergeSession() -> MergeSession? {
+        let groups = mergeGroups
+        guard let first = groups.first?.files.first else { return nil }
+        return MergeSession(groups: groups, outputFolder: outputDirectory(for: first.url))
+    }
+
     /// Converts every file that has a format chosen and is not already done.
     func convertAll() {
         for item in items where item.phase == .ready && item.selectedTarget != nil && !item.isBlocked {
