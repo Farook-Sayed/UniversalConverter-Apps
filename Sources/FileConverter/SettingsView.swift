@@ -169,6 +169,8 @@ struct SettingsView: View {
 struct FeatureRow: View {
     @Environment(AppModel.self) private var model
     let state: FeatureState
+    @State private var plan: RemovalPlan?
+    @State private var askingToRemove = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -195,16 +197,35 @@ struct FeatureRow: View {
                         .frame(maxWidth: 190, alignment: .trailing)
                 }
             } else if state.installed {
-                Label("Installed", systemImage: "checkmark.circle.fill")
-                    .labelStyle(.titleAndIcon)
-                    .foregroundStyle(.green)
-                    .font(.callout)
+                HStack(spacing: 10) {
+                    Label("Installed", systemImage: "checkmark.circle.fill")
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(.green)
+                        .font(.callout)
+                    Button("Remove…") {
+                        Task {
+                            let found = await model.removalPlan(state)
+                            if found.isEmpty {
+                                model.noteNotRemovable(state)
+                            } else {
+                                plan = found
+                                askingToRemove = true
+                            }
+                        }
+                    }
+                    .help("Remove this tool and delete its downloaded files")
+                }
             } else {
                 Button("Install") { model.install(state) }
                     .disabled(!model.homebrewInstalled)
             }
         }
         .padding(.vertical, 2)
+        .confirmationDialog("Remove \(state.feature.title)?", isPresented: $askingToRemove, presenting: plan) { plan in
+            Button("Remove and delete files", role: .destructive) { model.uninstall(state, plan: plan) }
+        } message: { plan in
+            Text(plan.confirmation)
+        }
     }
 }
 
@@ -213,6 +234,7 @@ struct ModelRow: View {
     @Environment(AppModel.self) private var model
     let entry: CodeModel
     @Binding var chosen: String
+    @State private var askingToRemove = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -250,13 +272,24 @@ struct ModelRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-        } else if chosen == entry.name {
-            Label("In use", systemImage: "checkmark.circle.fill")
-                .labelStyle(.titleAndIcon)
-                .foregroundStyle(.green)
-                .font(.callout)
         } else if model.installedModels.contains(entry.name) {
-            Button("Use") { chosen = entry.name }
+            HStack(spacing: 10) {
+                if chosen == entry.name {
+                    Label("In use", systemImage: "checkmark.circle.fill")
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(.green)
+                        .font(.callout)
+                } else {
+                    Button("Use") { chosen = entry.name }
+                }
+                Button("Remove…") { askingToRemove = true }
+                    .help("Delete this model from the Mac")
+            }
+            .confirmationDialog("Remove \(entry.title)?", isPresented: $askingToRemove) {
+                Button("Remove and delete files", role: .destructive) { model.removeModel(entry) }
+            } message: {
+                Text("This deletes the downloaded model (\(entry.download)). You can download it again from here.")
+            }
         } else {
             Button("Download") { model.installModel(entry) }
                 .disabled(!model.ollamaInstalled)

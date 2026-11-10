@@ -503,6 +503,52 @@ final class AppModel {
         }
     }
 
+    /// What removing a feature would take away, for the confirmation. Nothing is removed yet.
+    func removalPlan(_ state: FeatureState) async -> RemovalPlan {
+        let feature = state.feature
+        return await Task.detached { await ToolInstaller.removalPlan(for: feature, tools: ToolLocator()) }.value
+    }
+
+    /// Says why a group cannot be removed, when none of it was installed by Homebrew.
+    func noteNotRemovable(_ state: FeatureState) {
+        addToolNotice("\(state.feature.title) was not installed by Homebrew, so Universal Converter cannot remove it. Remove it the way you installed it.")
+    }
+
+    /// Removes a feature after the user confirmed. It takes its turn with installs, because both change Homebrew's folders.
+    func uninstall(_ state: FeatureState, plan: RemovalPlan) {
+        guard !isInstalling(state.id) else { return }
+        installSteps[state.id] = "Removing…"
+        let feature = state.feature
+        let id = state.id
+        Task { [weak self] in
+            do {
+                _ = try await ToolInstaller.uninstall(feature, tools: ToolLocator(), plan: plan) { step in
+                    Task { @MainActor in self?.setInstallStep(id, step) }
+                }
+                self?.addToolNotice("\(feature.title) was removed, and its downloaded files were deleted.")
+            } catch {
+                self?.addToolNotice("\(feature.title) could not be removed. \(error.localizedDescription)")
+            }
+            self?.finishInstall(id)
+        }
+    }
+
+    /// Deletes one downloaded code model after the user confirmed.
+    func removeModel(_ entry: CodeModel) {
+        let id = "model:\(entry.name)"
+        guard !isInstalling(id) else { return }
+        installSteps[id] = "Removing…"
+        Task { [weak self] in
+            do {
+                _ = try await ToolInstaller.removeModel(entry.name, tools: ToolLocator())
+                self?.addToolNotice("\(entry.title) was removed.")
+            } catch {
+                self?.addToolNotice("\(entry.title) could not be removed. \(error.localizedDescription)")
+            }
+            self?.finishInstall(id)
+        }
+    }
+
     /// Installs every feature that is not installed yet, all at once.
     func installAllMissing() {
         for state in missingFeatures where !isInstalling(state.id) { install(state) }

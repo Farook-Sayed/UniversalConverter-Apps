@@ -36,6 +36,7 @@
 		ACACFC66F1F46AB6075D1C18 /* CompressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65560E539EC65EF879E8F914 /* CompressionTests.swift */; };
 		ADDC4E06B8D596EBE18A6A79 /* ConverterCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9069ABF6BE461329C4B4688A /* ConverterCore */; };
 		AE3CD662C6FD4A9614B1F503 /* RouteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F78119D234497F11F91B880D /* RouteTests.swift */; };
+		C929F34E645D7B8F1CB7F092 /* RemovalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB719F422564565B587F3AC /* RemovalTests.swift */; };
 		CA195FA1C0BDF2B7F1A3F2D0 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC70772C3C1051B1635C9F2C /* ContentView.swift */; };
 		D01504B0115ABDBA2C8DBA5F /* RARTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 908486874F3B5705585F0032 /* RARTests.swift */; };
 		E39E88F7A896B93F79A5487A /* CodeChunkerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA798804B0544D5E17F4CDB5 /* CodeChunkerTests.swift */; };
@@ -52,7 +53,6 @@
 		4086005D43C478CC9421966D /* GUIDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = GUIDE.md; sourceTree = "<group>"; };
 		4A0C1D2156C03E743D20FA18 /* ToolingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolingTests.swift; sourceTree = "<group>"; };
 		4FB751AC3C9168CED63EDED6 /* GlassStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassStyle.swift; sourceTree = "<group>"; };
-		558B3928A5EAE998EE1A9C45 /* UniversalConverter */ = {isa = PBXFileReference; lastKnownFileType = folder; name = UniversalConverter; path = .; sourceTree = SOURCE_ROOT; };
 		5C36EF869FD7752307769F16 /* ConversionMatrixTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversionMatrixTests.swift; sourceTree = "<group>"; };
 		651FEE5C52E1124BD62C9B39 /* RobustnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RobustnessTests.swift; sourceTree = "<group>"; };
 		65560E539EC65EF879E8F914 /* CompressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompressionTests.swift; sourceTree = "<group>"; };
@@ -62,8 +62,10 @@
 		908486874F3B5705585F0032 /* RARTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RARTests.swift; sourceTree = "<group>"; };
 		97C81BCBE127AFA85E38FE38 /* ConversionIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversionIntegrationTests.swift; sourceTree = "<group>"; };
 		9F448E1A4555435E6C1ADACB /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		A677A030067B9B3B646AB2A5 /* mac-wt */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "mac-wt"; path = .; sourceTree = SOURCE_ROOT; };
 		A97C4554845A81F98D8B25AD /* InstallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallTests.swift; sourceTree = "<group>"; };
 		A98FA29B4BF8FFF13A48530B /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		AEB719F422564565B587F3AC /* RemovalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemovalTests.swift; sourceTree = "<group>"; };
 		B7492B4E278FE9700A8B6722 /* FeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTests.swift; sourceTree = "<group>"; };
 		B8FA1206B86888B141CE0747 /* ImageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageTests.swift; sourceTree = "<group>"; };
 		BCB43B0A1AE4F97E47977BD4 /* Snapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Snapshot.swift; sourceTree = "<group>"; };
@@ -153,7 +155,7 @@
 		9ED19C48FFAD9C6C8CACB1A2 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				558B3928A5EAE998EE1A9C45 /* UniversalConverter */,
+				A677A030067B9B3B646AB2A5 /* mac-wt */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -175,6 +177,7 @@
 				261B3000F09E5AAA88DF5767 /* PreflightTests.swift */,
 				F52FFD9E653236EAD20A3634 /* ProcessRunnerTests.swift */,
 				908486874F3B5705585F0032 /* RARTests.swift */,
+				AEB719F422564565B587F3AC /* RemovalTests.swift */,
 				651FEE5C52E1124BD62C9B39 /* RobustnessTests.swift */,
 				F78119D234497F11F91B880D /* RouteTests.swift */,
 				6E2CEE070986EFB317D28155 /* RoutingTests.swift */,
@@ -294,6 +297,7 @@
 				A65E94319DD805C4F984A3A0 /* PreflightTests.swift in Sources */,
 				7EAA0CA7E2B7D41ED2A152C6 /* ProcessRunnerTests.swift in Sources */,
 				D01504B0115ABDBA2C8DBA5F /* RARTests.swift in Sources */,
+				C929F34E645D7B8F1CB7F092 /* RemovalTests.swift in Sources */,
 				0521EFE7DC59E3E7581A899C /* RobustnessTests.swift in Sources */,
 				AE3CD662C6FD4A9614B1F503 /* RouteTests.swift in Sources */,
 				A7FD8B0B48C3CAA075C75875 /* RoutingTests.swift in Sources */,

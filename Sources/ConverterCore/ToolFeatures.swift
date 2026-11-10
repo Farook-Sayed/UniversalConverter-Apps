@@ -284,7 +284,7 @@ public enum ToolInstaller {
         }
     }
 
-    private static func run(_ executable: URL, _ arguments: [String], named: String,
+    static func run(_ executable: URL, _ arguments: [String], named: String,
                             environment: [String: String] = [:], log: InstallLog,
                             onOutput: (@Sendable (String) -> Void)? = nil) async throws {
         log.add("\(named): \(executable.lastPathComponent) \(arguments.joined(separator: " "))")

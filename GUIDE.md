@@ -19,7 +19,9 @@ Keep about 10 GB free for conversions. Each conversion needs room for its input 
 
 The app works right after you open it. Images, Word and text documents, audio (WAV, M4A) and archives (ZIP, TAR) need nothing else.
 
-For more formats, open **Settings → Tools**. Each group says what it adds and roughly how big it is. Click **Install** next to the ones you want, or **Install everything**. You can start several at once: the app downloads them together, then installs them one after another, because Homebrew cannot install two at the same time. Each row shows its own step, and the status bar at the bottom of the window says how many are running. When an install finishes, a message appears above the file list and the new formats show up in the menus.
+For more formats, open **Settings → Tools**. Each group says what it adds and roughly how big it is. Click **Install** next to the ones you want, or **Install everything**. You can start several at once: the app downloads them together, then installs them one after another, because Homebrew cannot install two at the same time. Each row shows its own step, and the status bar at the bottom of the window says how many are running.
+
+An installed group has a **Remove…** button. It shows what will be removed, asks you to confirm, then removes it with Homebrew and deletes the files it downloaded. Downloaded code models have a **Remove…** button too, in Settings → Code. Homebrew refuses to remove a program that another installed program needs, and the app shows that message. Node.js, Go, Rust and Python are general programming tools, so the confirmation warns you before removing them. When an install finishes, a message appears above the file list and the new formats show up in the menus.
 
 If you do not have Homebrew, the Tools tab links to [brew.sh](https://brew.sh). Install it once, then come back.
 
