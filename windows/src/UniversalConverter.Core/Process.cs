@@ -67,6 +67,9 @@ public static class ProcessRunner
         }
         // The last lines can still be arriving. This waits for the end of both streams.
         process.WaitForExit();
+        // A program that ended with an error just as the user cancelled was most likely stopped by the cancel, so the
+        // result is a cancellation, not a failure of the program.
+        if (cancellation.IsCancellationRequested && process.ExitCode != 0) throw new OperationCanceledException(cancellation);
         return new ProcessOutput(process.ExitCode, output.ToString(), errors.ToString());
     }
 

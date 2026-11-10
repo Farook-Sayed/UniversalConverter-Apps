@@ -65,7 +65,10 @@ public partial class ModelRowViewModel : ObservableObject
     public bool CanDownload => !IsInstalled && !IsWorking;
     public bool CanUse => IsInstalled && !IsSelected;
     public bool CanRemove => IsInstalled && !IsWorking;
-    public string StatusText => IsWorking ? (IsRemoving ? "Removing…" : "Downloading…") : IsSelected ? "In use" : IsInstalled ? "Downloaded" : "Not downloaded";
+    public string StatusText => IsWorking ? (IsRemoving ? "Removing…" : "Downloading…")
+        : IsSelected && IsInstalled ? "In use"
+        : IsSelected ? "Chosen, but not downloaded yet"
+        : IsInstalled ? "Downloaded" : "Not downloaded";
 
     public void Update()
     {

@@ -13,7 +13,8 @@ public partial class AdjustWindow : Window
     private double _aspect = 1.5;
     private bool _syncing;
 
-    public AdjustWindow() => InitializeComponent();
+    /// <summary>Only for the XAML previewer. The app always opens the window for a file.</summary>
+    public AdjustWindow() { InitializeComponent(); _item = null!; }
 
     public AdjustWindow(ItemViewModel item)
     {

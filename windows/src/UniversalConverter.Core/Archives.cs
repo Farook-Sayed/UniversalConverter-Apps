@@ -32,6 +32,21 @@ public static class Archives
         if (format is "zip" or "7z" or "rar")
         {
             using var opened = ArchiveFactory.OpenArchive(archive);
+            if (opened.IsSolid || format == "7z")
+            {
+                // A solid archive compresses all its files as one stream. Opening each file on its own would decompress
+                // everything before it again, so the whole archive is read once, from start to end.
+                using var all = opened.ExtractAllEntries();
+                while (all.MoveToNextEntry())
+                {
+                    var entry = all.Entry;
+                    if (entry.Key is null) continue;
+                    if (entry.IsEncrypted && !entry.IsDirectory) throw new System.Security.Cryptography.CryptographicException("password");
+                    if (entry.LinkTarget is not null) { links++; continue; }
+                    Write(entry.Key, entry.IsDirectory, all.OpenEntryStream);
+                }
+                return links;
+            }
             foreach (var entry in opened.Entries)
             {
                 if (entry.Key is null) continue;

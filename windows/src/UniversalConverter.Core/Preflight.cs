@@ -121,11 +121,27 @@ public static class Preflight
         return candidate;
     }
 
+    /// <summary>Whether the app can save into a folder. The check writes and deletes a small file, so its answer is kept for ten
+    /// seconds: the queue checks every row whenever anything changes, and the folder is often synced by OneDrive.</summary>
     public static bool CanWrite(string folder)
+    {
+        var key = NearestExistingFolder(folder);
+        lock (WriteCache)
+        {
+            if (WriteCache.TryGetValue(key, out var known) && DateTime.UtcNow - known.At < TimeSpan.FromSeconds(10)) return known.Ok;
+        }
+        bool ok = ProbeWrite(key);
+        lock (WriteCache) WriteCache[key] = (ok, DateTime.UtcNow);
+        return ok;
+    }
+
+    private static readonly Dictionary<string, (bool Ok, DateTime At)> WriteCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static bool ProbeWrite(string existingFolder)
     {
         try
         {
-            var probe = Path.Combine(NearestExistingFolder(folder), ".uc-write-" + Guid.NewGuid().ToString("N"));
+            var probe = Path.Combine(existingFolder, ".uc-write-" + Guid.NewGuid().ToString("N"));
             using (File.Create(probe)) { }
             File.Delete(probe);
             return true;

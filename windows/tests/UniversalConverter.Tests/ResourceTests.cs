@@ -27,8 +27,6 @@ public class ResourceTests
         var coordinator = new InstallCoordinator();
         int downloadsNow = 0, downloadsPeak = 0, installsNow = 0, installsPeak = 0;
         var gate = new object();
-        void Enter(ref int now, ref int peak) { lock (gate) { now++; peak = Math.Max(peak, now); } }
-        void Leave(ref int now) { lock (gate) now--; }
         var started = DateTime.UtcNow;
         await Task.WhenAll(Enumerable.Range(0, 6).Select(async _ =>
         {
@@ -120,20 +118,22 @@ public class ResourceTests
         var main = new MainViewModel();
         var settings = new SettingsViewModel(main);
         int now = 0, peak = 0;
+        // Every fake install waits until the test lets it finish, so all three are certainly running at the same time.
+        var release = new TaskCompletionSource();
         settings.InstallOverride = async (feature, step, _) =>
         {
             lock (settings) { now++; peak = Math.Max(peak, now); }
             step("Downloading… 10%");
-            await Task.Delay(150);
+            await release.Task;
             lock (settings) now--;
         };
         var rows = settings.ToolRows.Where(r => r.CanInstall).Take(3).ToList();
         if (rows.Count < 3) throw new SkipException("Fewer than three tools are missing on this PC");
         var all = rows.Select(settings.InstallAsync).ToList();
-        await Task.Delay(60);
         Assert.All(rows, r => Assert.True(r.IsWorking, "every row shows its own install at the same time"));
         Assert.True(settings.AnyInstalling);
         Assert.All(rows, r => Assert.False(r.CanInstall, "a row that is installing cannot be started twice"));
+        release.SetResult();
         await Task.WhenAll(all);
         Assert.Equal(3, peak);
         Assert.All(rows, r => Assert.False(r.IsWorking));

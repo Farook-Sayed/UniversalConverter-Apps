@@ -11,8 +11,10 @@ public sealed class AppSettings
     public int RepairAttempts { get; set; } = 1;
     public PageOutput PageOutput { get; set; } = PageOutput.Folder;
 
-    private static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Universal Converter", "settings.json");
+    /// <summary>Where the settings are kept. UC_SETTINGS_FILE moves them, which the tests use so they never touch the real settings.</summary>
+    private static string FilePath => Environment.GetEnvironmentVariable("UC_SETTINGS_FILE") is { Length: > 0 } custom
+        ? custom
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Universal Converter", "settings.json");
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 

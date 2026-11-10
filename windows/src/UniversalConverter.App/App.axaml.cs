@@ -21,6 +21,9 @@ public partial class App : Application
             string? Option(string name) { int i = args.IndexOf(name); if (i < 0) return null; var v = i + 1 < args.Count ? args[i + 1] : null; args.RemoveRange(i, v is null ? 1 : 2); return v; }
             var demo = Option("--demo");
             var snapshot = Option("--snapshot");
+            // --theme light or --theme dark shows the app in that look, for checking both. Normally it follows Windows.
+            if (Option("--theme") is { } theme)
+                RequestedThemeVariant = theme == "light" ? Avalonia.Styling.ThemeVariant.Light : Avalonia.Styling.ThemeVariant.Dark;
             // Files given on the command line, or sent with "Open with", are added to the queue at start-up.
             var files = args.Where(a => !a.StartsWith("--")).ToList();
             if (files.Count > 0) _ = model.AddFilesAsync(files);

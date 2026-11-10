@@ -41,6 +41,23 @@ public sealed class ToolLocator
     /// installed while the app is open is found without restarting it.</summary>
     public static string SearchPath()
     {
+        // Reading the registry and listing the install folders for every lookup and every program start adds up when a
+        // queue of files is checked, so the answer is kept for two seconds. A tool installed a moment ago is still found.
+        lock (CacheGate)
+        {
+            if (_cachedPath is not null && DateTime.UtcNow - _cachedAt < TimeSpan.FromSeconds(2)) return _cachedPath;
+            _cachedPath = BuildSearchPath();
+            _cachedAt = DateTime.UtcNow;
+            return _cachedPath;
+        }
+    }
+
+    private static readonly object CacheGate = new();
+    private static string? _cachedPath;
+    private static DateTime _cachedAt;
+
+    private static string BuildSearchPath()
+    {
         var parts = new List<string>();
         void AddPath(string? value) { if (!string.IsNullOrEmpty(value)) parts.AddRange(value.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)); }
         AddPath(Environment.GetEnvironmentVariable("PATH"));
