@@ -262,9 +262,9 @@ extension Converter {
         guard let to = FormatCatalog.pandocName(request.target.id, input: false) else {
             throw ConversionError.unsupported("Pandoc cannot write \(request.target.id).")
         }
-        var files = request.inputs
+        let files = request.inputs
         var sources: [URL] = files.map(\.url)
-        var from: String
+        let from: String
         let names = try files.map { file -> String in
             guard let name = FormatCatalog.pandocName(file.formatID, input: true) else {
                 throw ConversionError.unsupported("\(file.url.lastPathComponent) cannot be merged as a document.")
@@ -287,7 +287,6 @@ extension Converter {
             }
             notes.append("The files were different kinds, so they were joined as Markdown. Some layout may be lost.")
         }
-        files = []
         let output = workDir.appendingPathComponent("merged.\(request.target.fileExtension)")
         var arguments = ["--from", from, "--to", to, "-o", output.path]
         if ["html", "epub", "rtf"].contains(to) { arguments.append("--standalone") }

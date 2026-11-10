@@ -23,7 +23,6 @@ struct MergeSheet: View {
         }
         .padding(20)
         .frame(width: 500)
-        .disabled(false)
         .interactiveDismissDisabled(session.isRunning)
     }
 

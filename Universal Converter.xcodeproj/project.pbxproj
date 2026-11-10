@@ -60,8 +60,8 @@
 		5C36EF869FD7752307769F16 /* ConversionMatrixTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversionMatrixTests.swift; sourceTree = "<group>"; };
 		651FEE5C52E1124BD62C9B39 /* RobustnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RobustnessTests.swift; sourceTree = "<group>"; };
 		65560E539EC65EF879E8F914 /* CompressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompressionTests.swift; sourceTree = "<group>"; };
-		6C88FA0D1B535740CAA8AB6C /* mac-merge */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "mac-merge"; path = .; sourceTree = SOURCE_ROOT; };
 		6E2CEE070986EFB317D28155 /* RoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutingTests.swift; sourceTree = "<group>"; };
+		558B3928A5EAE998EE1A9C45 /* UniversalConverter */ = {isa = PBXFileReference; lastKnownFileType = folder; name = UniversalConverter; path = .; sourceTree = SOURCE_ROOT; };
 		88DAA7930FC48B4C9B63ADF7 /* FileConverterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileConverterApp.swift; sourceTree = "<group>"; };
 		8A9664ABCBD2D7D34FE4AA88 /* MergeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergeSheet.swift; sourceTree = "<group>"; };
 		8CF75D12B4CB163F646F83EA /* QueueRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueRow.swift; sourceTree = "<group>"; };
@@ -163,7 +163,7 @@
 		9ED19C48FFAD9C6C8CACB1A2 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				6C88FA0D1B535740CAA8AB6C /* mac-merge */,
+				558B3928A5EAE998EE1A9C45 /* UniversalConverter */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
