@@ -1,0 +1,103 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:UniversalConverter.App.ViewModels"
+        x:Class="UniversalConverter.App.Views.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="Settings and tools" Width="720" Height="640" MinWidth="600" MinHeight="460"
+        WindowStartupLocation="CenterOwner" Icon="/Assets/app.ico">
+  <Grid RowDefinitions="*,Auto">
+    <TabControl x:Name="Tabs" Grid.Row="0" Margin="12,12,12,0">
+
+      <TabItem Header="General">
+        <ScrollViewer>
+          <StackPanel Margin="14,16" Spacing="22" MaxWidth="620" HorizontalAlignment="Left">
+            <StackPanel Spacing="8">
+              <TextBlock Text="Save results in" FontWeight="SemiBold" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <TextBox Text="{Binding OutputFolder}" />
+                <Button Grid.Column="1" Content="Choose…" Click="OnChooseFolder" />
+              </Grid>
+              <TextBlock Classes="caption" TextWrapping="Wrap" Text="Each result gets its own name. A file that is already there is never replaced." />
+            </StackPanel>
+            <StackPanel Spacing="8">
+              <TextBlock Text="A PDF with several pages, saved as pictures" FontWeight="SemiBold" />
+              <ComboBox ItemsSource="{x:Static vm:SettingsViewModel.PageOutputTitles}" SelectedIndex="{Binding PageOutputIndex}" MinWidth="240" />
+              <TextBlock Classes="caption" Text="A single page is always one picture." />
+            </StackPanel>
+            <StackPanel Spacing="8">
+              <TextBlock Text="Reading text from pictures and scans" FontWeight="SemiBold" />
+              <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding OcrStatus}" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Code translation">
+        <ScrollViewer>
+          <StackPanel Margin="14,16" Spacing="14">
+            <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                       Text="Code is translated by a model that runs on this PC through Ollama. Pick one that fits your memory. A bigger model is slower and more careful." />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <TextBlock Text="When translated code fails its check" VerticalAlignment="Center" />
+              <ComboBox ItemsSource="{x:Static vm:SettingsViewModel.RepairTitles}" SelectedIndex="{Binding RepairIndex}" />
+            </StackPanel>
+            <ItemsControl ItemsSource="{Binding ModelRows}">
+              <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ModelRowViewModel">
+                  <Border Classes="card">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                      <StackPanel Spacing="3">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Detail}" Classes="caption" TextWrapping="Wrap" />
+                        <TextBlock Text="This PC may not have enough memory for this model." Foreground="Orange" FontSize="12" IsVisible="{Binding DoesNotFit}" />
+                        <TextBlock Text="{Binding StatusText}" FontSize="12" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                        <Button Content="Download" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                        <Button Classes="accent" Content="Use this one" Command="{Binding UseCommand}" IsVisible="{Binding CanUse}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Tools">
+        <ScrollViewer>
+          <StackPanel Margin="14,16" Spacing="14">
+            <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                       Text="Pictures, PDF pages, archives, 3D models and text recognition work with nothing to install. Everything else uses a free program, and each one is installed with a single click using the Windows Package Manager (winget). Windows may ask you to allow the install." />
+            <ItemsControl ItemsSource="{Binding ToolRows}">
+              <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ToolRowViewModel">
+                  <Border Classes="card">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                      <StackPanel Spacing="3">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Detail}" Classes="caption" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding SizeText}" Classes="caption" />
+                        <TextBlock Text="{Binding StatusText}" FontSize="12" />
+                      </StackPanel>
+                      <Button Grid.Column="1" Classes="accent" Content="Install" Command="{Binding InstallCommand}" IsEnabled="{Binding CanInstall}"
+                              VerticalAlignment="Center" MinWidth="90" HorizontalContentAlignment="Center" IsVisible="{Binding !IsInstalled}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Button Content="Check again" Click="OnRecheck" HorizontalAlignment="Left" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="22,10,22,14">
+      <TextBlock Text="{Binding Message}" TextWrapping="Wrap" VerticalAlignment="Center" />
+      <Button Grid.Column="1" Content="Close" Click="OnClose" MinWidth="90" HorizontalContentAlignment="Center" />
+    </Grid>
+  </Grid>
+</Window>

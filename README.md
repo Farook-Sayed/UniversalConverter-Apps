@@ -106,6 +106,10 @@ docs/                    Images for this page.
 
 More: [GUIDE.md](GUIDE.md) (using the app), [DESIGN.md](DESIGN.md) (design rules), [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Windows
+
+A Windows 10 and 11 version lives in [`windows/`](windows/README.md). It is a separate C# app with the same idea and most of the same features: detection by content, routes of up to three steps, picture adjustments with a crop box, text from pictures and scans, code translation with a local model, and one-click installs of the optional tools through winget. It builds as a single `UniversalConverter.exe` that needs nothing installed.
+
 ## Known limits
 
 - Code over 256 KB is refused. Longer files are split at their top-level definitions, translated part by part and joined, so they take longer. Java output may need its class declaration checked by hand.
