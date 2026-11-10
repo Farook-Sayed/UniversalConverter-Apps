@@ -1,0 +1,43 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+    paths: ["windows/**", ".github/workflows/windows.yml"]
+  pull_request:
+    paths: ["windows/**", ".github/workflows/windows.yml"]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Build and test on Windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Test
+        # Tests that need a conversion tool skip themselves when it is not installed.
+        run: dotnet test tests/UniversalConverter.Tests -c Release
+      - name: Build the exe
+        shell: bash
+        run: ./scripts/build-exe.sh
+      - name: Start-up check
+        continue-on-error: true
+        # The program must start, load its libraries and show a window. It closes itself after the snapshot.
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist/UniversalConverter.exe -ArgumentList "--snapshot","$env:RUNNER_TEMP/snap" -PassThru
+          if (-not $p.WaitForExit(90000)) { $p.Kill(); throw "The app did not finish its start-up check in time." }
+          if ($p.ExitCode -ne 0) { throw "The app exited with code $($p.ExitCode)." }
+          if (-not (Test-Path "$env:RUNNER_TEMP/snap/empty.png")) { throw "The app started but drew no window." }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UniversalConverter-windows
+          path: |
+            windows/dist/UniversalConverter.exe
+            ${{ runner.temp }}/snap/*.png

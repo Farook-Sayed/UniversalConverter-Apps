@@ -1,0 +1,58 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:UniversalConverter.App.ViewModels"
+        xmlns:v="using:UniversalConverter.App.Views"
+        x:Class="UniversalConverter.App.Views.AdjustWindow"
+        x:DataType="vm:ImageEditsViewModel"
+        Title="Adjust picture" Width="460" Height="760" MinHeight="520" CanResize="True"
+        WindowStartupLocation="CenterOwner" Icon="/Assets/app.ico">
+  <Grid RowDefinitions="*,Auto">
+    <ScrollViewer Grid.Row="0">
+      <StackPanel Margin="22,18" Spacing="20">
+
+        <StackPanel Spacing="8">
+          <TextBlock Text="Compression" FontWeight="SemiBold" />
+          <ComboBox ItemsSource="{x:Static vm:ImageEditsViewModel.CompressionTitles}" SelectedIndex="{Binding CompressionIndex}" HorizontalAlignment="Stretch" />
+          <TextBox Text="{Binding CustomSize}" Watermark="500 KB" IsVisible="{Binding IsCustomCompression}" />
+          <TextBlock Text="Enter a size such as 500 KB or 2 MB." Foreground="Orange" FontSize="12" IsVisible="{Binding CustomSizeInvalid}" />
+          <TextBlock x:Name="CompressionHelp" Classes="caption" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Spacing="8">
+          <TextBlock Text="Size and crop" FontWeight="SemiBold" />
+          <ComboBox ItemsSource="{x:Static vm:ImageEditsViewModel.SizeTitles}" SelectedIndex="{Binding SizeIndex}" HorizontalAlignment="Stretch" />
+          <TextBox Text="{Binding CustomPixels}" Watermark="Longest side, such as 1200" IsVisible="{Binding IsPixelSize}" />
+          <TextBlock Text="Enter a whole number of pixels, such as 1200." Foreground="Orange" FontSize="12" IsVisible="{Binding PixelsInvalid}" />
+          <Border Background="#22000000" CornerRadius="6" Height="250">
+            <v:CropEditor x:Name="Editor" />
+          </Border>
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <TextBlock Grid.Column="0" Text="Shape" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" x:Name="ShapeBox" ItemsSource="{x:Static vm:ImageEditsViewModel.CropTitles}" HorizontalAlignment="Stretch" />
+            <Button Grid.Column="2" Content="Reset crop" Click="OnResetCrop" IsEnabled="{Binding HasCrop}" />
+          </Grid>
+          <TextBlock Classes="caption" TextWrapping="Wrap" Text="Drag the box, or its corners, to choose what to keep. A shape keeps the centre of the picture. A picture is never made larger than it is." />
+        </StackPanel>
+
+        <StackPanel Spacing="8">
+          <TextBlock Text="Effects" FontWeight="SemiBold" />
+          <CheckBox Content="Remove background" IsChecked="{Binding RemoveBackground}" />
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+            <TextBlock Text="Style" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:ImageEditsViewModel.EffectTitles}" SelectedIndex="{Binding EffectIndex}" HorizontalAlignment="Stretch" />
+          </Grid>
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="Removing the background keeps the main subject. PNG, TIFF, GIF, WebP and AVIF stay transparent, and JPEG and BMP get a white background. A sketch is drawn on white paper." />
+        </StackPanel>
+
+        <StackPanel Spacing="8">
+          <CheckBox Content="Keep camera and location details" IsChecked="{Binding KeepMetadata}" />
+          <TextBlock Classes="caption" TextWrapping="Wrap" Text="Turn this off before sharing a picture publicly. These details can include where the photo was taken." />
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+    <Border Grid.Row="1" Padding="22,12" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+      <Button Classes="accent" Content="Done" HorizontalAlignment="Right" MinWidth="90" HorizontalContentAlignment="Center" Click="OnDone" />
+    </Border>
+  </Grid>
+</Window>

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>UniversalConverter.Core</RootNamespace>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1416;NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AssimpNet" Version="4.1.0" />
+    <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="15.1.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.31.1" />
+    <PackageReference Include="PdfPig" Version="0.1.16" />
+    <PackageReference Include="PDFtoImage" Version="5.4.0" />
+    <PackageReference Include="SharpCompress" Version="0.50.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The background-removal model (U2-Net small, Apache-2.0, 4.6 MB). It runs on the PC, nothing is uploaded. -->
+    <EmbeddedResource Include="Resources\u2netp.onnx" LogicalName="u2netp.onnx" />
+  </ItemGroup>
+
+</Project>

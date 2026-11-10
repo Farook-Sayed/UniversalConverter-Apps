@@ -1,0 +1,130 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:UniversalConverter.App.ViewModels"
+        x:Class="UniversalConverter.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Universal Converter" Width="980" Height="720" MinWidth="760" MinHeight="520"
+        Icon="/Assets/app.ico"
+        WindowStartupLocation="CenterScreen"
+        TransparencyLevelHint="Mica, AcrylicBlur, None"
+        Background="Transparent"
+        DragDrop.AllowDrop="True">
+  <Panel>
+    <!-- Behind everything, a quiet fill for the systems that cannot show Mica. -->
+    <Border Background="{DynamicResource SystemRegionBrush}" Opacity="0.82" />
+    <Grid RowDefinitions="Auto,*,Auto" Margin="24,20,24,16">
+
+      <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+        <StackPanel Grid.Column="0" Spacing="2">
+          <TextBlock Text="Universal Converter" FontSize="26" FontWeight="SemiBold" />
+          <TextBlock Classes="caption" Text="Everything is converted on this PC. Nothing is uploaded." />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button x:Name="AddButton" Content="Add files…" Click="OnAddFiles" />
+          <Button Content="Merge…" Click="OnMerge" IsVisible="{Binding CanMerge}" ToolTip.Tip="Join several files into one" />
+          <Button Classes="accent" Content="Convert all" Command="{Binding ConvertAllCommand}" IsEnabled="{Binding CanConvertAll}" />
+          <Button Content="Settings and tools" Click="OnOpenSettings" />
+        </StackPanel>
+      </Grid>
+
+      <!-- The empty window: a place to drop files. -->
+      <Border Grid.Row="1" IsVisible="{Binding HasNoItems}" Classes="card" BorderThickness="2" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+              Background="Transparent" CornerRadius="12">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" MaxWidth="460">
+          <TextBlock Text="⇩" FontSize="54" HorizontalAlignment="Center" Opacity="0.6" />
+          <TextBlock Text="Drop files here" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" />
+          <TextBlock TextAlignment="Center" TextWrapping="Wrap" Opacity="0.75"
+                     Text="Video, audio, pictures, documents, e-books, archives, fonts, 3D models and code. The app looks inside each file to see what it really is, then offers the formats it can become." />
+          <Button Content="Choose files…" HorizontalAlignment="Center" Click="OnAddFiles" Margin="0,8,0,0" />
+        </StackPanel>
+      </Border>
+
+      <ScrollViewer Grid.Row="1" IsVisible="{Binding HasItems}">
+        <ItemsControl ItemsSource="{Binding Items}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><StackPanel Spacing="10" /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ItemViewModel">
+              <Border Classes="card">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                  <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="32" VerticalAlignment="Top" Margin="0,2,0,0" />
+
+                  <StackPanel Grid.Column="1" Spacing="6">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Classes="caption" Text="{Binding Subtitle}" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasRoutes}" Margin="0,4,0,0">
+                      <TextBlock Text="Convert to" VerticalAlignment="Center" Opacity="0.75" />
+                      <ComboBox ItemsSource="{Binding Routes}" SelectedItem="{Binding SelectedRoute}" MinWidth="260" IsEnabled="{Binding !IsBusy}" />
+                    </StackPanel>
+
+                    <!-- PDF compression. -->
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsPdfCompress}">
+                      <TextBlock Text="Compression" VerticalAlignment="Center" Opacity="0.75" />
+                      <ComboBox ItemsSource="{x:Static vm:ItemViewModel.PdfPresetTitles}" SelectedIndex="{Binding PdfPresetIndex}" IsEnabled="{Binding !IsBusy}" />
+                      <TextBox Text="{Binding PdfCustomSize}" Watermark="2 MB" Width="100" IsVisible="{Binding PdfCustom}" />
+                      <TextBlock Text="Enter a size such as 2 MB." Foreground="Orange" VerticalAlignment="Center" IsVisible="{Binding PdfCustomInvalid}" />
+                    </StackPanel>
+
+                    <!-- Picture adjustments. -->
+                    <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsImageAdjustable}">
+                      <TextBlock Text="{Binding AdjustSummary}" Classes="caption" VerticalAlignment="Center" />
+                      <Button Content="Adjust…" Click="OnAdjust" IsEnabled="{Binding !IsBusy}" />
+                    </StackPanel>
+
+                    <ItemsControl ItemsSource="{Binding Findings}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:FindingRow">
+                          <TextBlock Text="{Binding Message}" Foreground="{Binding Brush}" TextWrapping="Wrap" FontSize="12" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Content="Open Tools to install it" IsVisible="{Binding HasToolHint}" Click="OnOpenTools" HorizontalAlignment="Left" />
+
+                    <!-- Progress. -->
+                    <StackPanel IsVisible="{Binding IsConverting}" Spacing="4">
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <ProgressBar Grid.Column="0" Minimum="0" Maximum="100" Value="{Binding Percent}" IsIndeterminate="{Binding IsIndeterminate}" />
+                        <TextBlock Grid.Column="1" Text="{Binding PercentText}" IsVisible="{Binding HasPercent}" FontSize="12" />
+                      </Grid>
+                      <TextBlock Text="{Binding ProgressMessage}" Classes="caption" />
+                    </StackPanel>
+
+                    <!-- Result. -->
+                    <StackPanel IsVisible="{Binding IsFinished}" Spacing="4">
+                      <TextBlock Foreground="SeaGreen" FontWeight="SemiBold" Text="Done" />
+                      <TextBlock Text="{Binding OutputPath}" Classes="caption" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding ValidationText}" Classes="caption" TextWrapping="Wrap" IsVisible="{Binding ValidationText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                      <ItemsControl ItemsSource="{Binding Notes}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" Foreground="#C77700" TextWrapping="Wrap" FontSize="12" /></DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <Button Content="Show in folder" Click="OnReveal" HorizontalAlignment="Left" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding ErrorText}" Foreground="#C42B1C" TextWrapping="Wrap" IsVisible="{Binding IsFailed}" />
+                  </StackPanel>
+
+                  <StackPanel Grid.Column="2" Spacing="6" MinWidth="120">
+                    <Button Classes="accent" Content="{Binding ConvertLabel}" Click="OnConvert" IsEnabled="{Binding CanConvert}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                    <Button Content="Cancel" Click="OnCancel" IsVisible="{Binding CanCancel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                    <Button Content="Remove" Click="OnRemove" IsVisible="{Binding !IsBusy}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                  </StackPanel>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+      <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,14,0,0" ColumnSpacing="10">
+        <TextBlock Grid.Column="0" Text="Save to" VerticalAlignment="Center" Opacity="0.75" />
+        <TextBlock Grid.Column="1" Text="{Binding OutputFolder}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        <TextBlock Grid.Column="2" Text="{Binding QueueSummary}" VerticalAlignment="Center" Classes="caption" />
+        <Button Grid.Column="3" Content="Change…" Click="OnChooseFolder" />
+        <Button Grid.Column="4" Content="Open folder" Click="OnOpenFolder" />
+      </Grid>
+    </Grid>
+  </Panel>
+</Window>
