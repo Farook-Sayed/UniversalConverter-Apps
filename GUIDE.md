@@ -19,7 +19,7 @@ Keep about 10 GB free for conversions. Each conversion needs room for its input 
 
 The app works right after you open it. Images, Word and text documents, audio (WAV, M4A) and archives (ZIP, TAR) need nothing else.
 
-For more formats, open **Settings → Tools**. Each group says what it adds and roughly how big it is. Click **Install** next to the ones you want. The app installs them with Homebrew and shows the progress in the status bar at the bottom of the window. When an install finishes, a message appears above the file list and the new formats show up in the menus.
+For more formats, open **Settings → Tools**. Each group says what it adds and roughly how big it is. Click **Install** next to the ones you want, or **Install everything**. You can start several at once: the app downloads them together, then installs them one after another, because Homebrew cannot install two at the same time. Each row shows its own step, and the status bar at the bottom of the window says how many are running. When an install finishes, a message appears above the file list and the new formats show up in the menus.
 
 If you do not have Homebrew, the Tools tab links to [brew.sh](https://brew.sh). Install it once, then come back.
 
@@ -171,5 +171,5 @@ The matrix takes several minutes. Its report is `build/matrix-report.txt`.
 - The app works only on the Mac it was built on. Sharing it with other people needs signing and notarization.
 - Converting large video or images can take a lot of memory. The figures in the requirements are from small test files.
 - Progress shows a percentage for videos, audio, scanned PDFs, translated code parts and custom PDF sizes. A chain of several steps also shows a percentage, in which each finished step counts. Other conversions show a spinner.
-- Two conversions run at a time. Other files wait in the queue.
+- Conversions run side by side: two to four at a time, depending on the processor cores (one for every three cores). Each FFmpeg run gets its share of the cores, so they do not fight over them. Other files wait in the queue.
 - Camera RAW depends on macOS supporting the camera. It is tested with a generated DNG file, not with files from each brand.
