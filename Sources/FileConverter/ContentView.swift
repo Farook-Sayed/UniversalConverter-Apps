@@ -210,7 +210,7 @@ struct StatusBar: View {
             if model.isInstalling {
                 ProgressView()
                     .controlSize(.small)
-                Text(model.installStep ?? "Installing…")
+                Text(model.installSummary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

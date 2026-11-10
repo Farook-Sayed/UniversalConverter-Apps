@@ -123,13 +123,13 @@ struct SettingsView: View {
 
             Section {
                 ForEach(model.features) { state in
-                    FeatureRow(state: state, busyElsewhere: model.isInstalling && model.installingID != state.id)
+                    FeatureRow(state: state)
                 }
             } header: {
                 Text("Add more formats")
             } footer: {
                 if model.homebrewInstalled {
-                    Text("Installs use Homebrew and run in the background. Large downloads can take a while.")
+                    Text("Installs use Homebrew and run in the background. You can install several at once: they download together, then install one after another.")
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("These installs use Homebrew, a free package manager. Install it once, then come back here.")
@@ -139,6 +139,10 @@ struct SettingsView: View {
             }
 
             Section {
+                if model.homebrewInstalled, model.missingFeatures.count > 1 {
+                    Button("Install everything") { model.installAllMissing() }
+                        .help("Downloads everything at the same time, then installs it one tool after another")
+                }
                 Button("Check Again") {
                     model.refreshTools()
                     model.rebuildTargets()
@@ -165,7 +169,6 @@ struct SettingsView: View {
 struct FeatureRow: View {
     @Environment(AppModel.self) private var model
     let state: FeatureState
-    let busyElsewhere: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -181,10 +184,16 @@ struct FeatureRow: View {
                     .foregroundStyle(.tertiary)
             }
             Spacer(minLength: 12)
-            if model.installingID == state.id {
-                ProgressView()
-                    .controlSize(.small)
-                    .help(model.installStep ?? "Installing…")
+            if model.isInstalling(state.id) {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(model.installSteps[state.id] ?? "Installing…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .frame(maxWidth: 190, alignment: .trailing)
+                }
             } else if state.installed {
                 Label("Installed", systemImage: "checkmark.circle.fill")
                     .labelStyle(.titleAndIcon)
@@ -192,7 +201,7 @@ struct FeatureRow: View {
                     .font(.callout)
             } else {
                 Button("Install") { model.install(state) }
-                    .disabled(busyElsewhere || !model.homebrewInstalled)
+                    .disabled(!model.homebrewInstalled)
             }
         }
         .padding(.vertical, 2)
@@ -233,10 +242,14 @@ struct ModelRow: View {
     }
 
     @ViewBuilder private var trailing: some View {
-        if model.installingID == "model:\(entry.name)" {
-            ProgressView()
-                .controlSize(.small)
-                .help(model.installStep ?? "Downloading…")
+        if model.isInstalling("model:\(entry.name)") {
+            HStack(spacing: 6) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Downloading…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         } else if chosen == entry.name {
             Label("In use", systemImage: "checkmark.circle.fill")
                 .labelStyle(.titleAndIcon)
@@ -246,7 +259,7 @@ struct ModelRow: View {
             Button("Use") { chosen = entry.name }
         } else {
             Button("Download") { model.installModel(entry) }
-                .disabled(model.isInstalling || !model.ollamaInstalled)
+                .disabled(!model.ollamaInstalled)
         }
     }
 }

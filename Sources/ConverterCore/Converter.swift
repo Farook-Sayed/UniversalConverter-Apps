@@ -262,8 +262,10 @@ public struct Converter: Sendable {
         let output = workDir.appendingPathComponent("out.\(target.fileExtension)")
         // FFmpeg writes its progress as key=value lines to stdout. Their time, against the length, is the percentage.
         let duration = await mediaDuration(input.url)
+        // Conversions run side by side, so each gets its share of the cores instead of every one asking for all of them.
+        let threads = ["-threads", "\(ResourcePlan.threadsPerConversion())"]
         let args = ["-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-y", "-i", input.url.path]
-            + Self.ffmpegOptions(for: target.id) + [output.path]
+            + Self.ffmpegOptions(for: target.id) + threads + [output.path]
         log.append("ffmpeg \(args.joined(separator: " "))")
         let result = try await ProcessRunner.run(tool, arguments: args, onOutput: { [self] line in
             guard let duration, duration > 0, line.hasPrefix("out_time_us="),

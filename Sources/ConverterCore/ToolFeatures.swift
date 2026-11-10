@@ -105,74 +105,212 @@ public struct ToolFeature: Identifiable, Sendable {
     ]
 }
 
-/// Installs a feature with Homebrew, then runs any extra steps it needs. One install at a time.
+/// Installs a feature with Homebrew, then runs any extra steps it needs.
+///
+/// Several features can be installed at the same time. Each one first downloads everything it needs, side by side with
+/// the others, then takes its turn to install, then runs its extra steps (the font tools, the model download) without
+/// holding up anyone else.
 public enum ToolInstaller {
+
+    /// Settings that stop Homebrew doing slow extra work on every install: updating itself, cleaning up old versions,
+    /// sending statistics, and upgrading packages the user did not ask about. None of them changes what gets installed.
+    public static let brewEnvironment: [String: String] = [
+        "HOMEBREW_NO_AUTO_UPDATE": "1",
+        "HOMEBREW_NO_INSTALL_CLEANUP": "1",
+        "HOMEBREW_NO_INSTALL_UPGRADE": "1",
+        "HOMEBREW_NO_ANALYTICS": "1",
+        "HOMEBREW_NO_ENV_HINTS": "1",
+        // Newer Homebrew downloads several files at once. Older versions ignore this.
+        "HOMEBREW_DOWNLOAD_CONCURRENCY": "auto",
+    ]
+
     public static func install(_ feature: ToolFeature, tools: ToolLocator, codeModel: String,
+                               coordinator: InstallCoordinator = .shared,
                                progress: @escaping @Sendable (String) -> Void) async throws -> [String] {
         guard let brew = tools.locate(["brew"]) else {
             throw ConversionError.toolNotFound("Homebrew. Install it from brew.sh, then try again")
         }
-        var log: [String] = []
-        for formula in feature.formulae {
-            progress("Installing \(formula)…")
-            try await run(brew, ["install", formula], named: "Homebrew", log: &log)
+        let log = InstallLog()
+
+        // 1. Download. Homebrew is asked exactly what the install would download, which leaves out what is already here
+        //    and the build tools that a ready-made package never needs. Those packages are fetched in batches that run
+        //    side by side, and a package that another feature is already fetching is waited for, not fetched twice.
+        if !feature.formulae.isEmpty || !feature.casks.isEmpty {
+            progress("Checking what to download…")
+            let formulaNames = feature.formulae.isEmpty ? [] : await plannedDownloads(
+                brew, ["install", "--dry-run", "--formula"] + feature.formulae, log: log)
+            var downloads: [Task<Void, Never>] = []
+            downloads += await coordinator.ledger.reserve(formulaNames, groups: ResourcePlan.downloadBatchesPerFeature, kind: "formula") { batch in
+                await download(brew, ["fetch", "--formula"] + batch, coordinator: coordinator, log: log)
+            }
+            // A cask is one large file, so each gets a download of its own and does not wait behind the small tools.
+            for cask in feature.casks {
+                downloads += await coordinator.ledger.reserve([cask], groups: 1, kind: "cask") { batch in
+                    await download(brew, ["fetch", "--cask"] + batch, coordinator: coordinator, log: log)
+                }
+            }
+            progress("Downloading…")
+            for task in downloads { await task.value }
         }
-        for cask in feature.casks {
-            progress("Installing \(cask)…")
-            try await run(brew, ["install", "--cask", cask], named: "Homebrew", log: &log)
+        try Task.checkCancellation()
+
+        // 2. Install, one feature at a time. The files are already here, so this is quick.
+        if !feature.formulae.isEmpty || !feature.casks.isEmpty {
+            try await coordinator.installs.withSlot(onWait: { progress("Waiting for another install to finish…") }) {
+                if !feature.formulae.isEmpty {
+                    // One run for every formula, so Homebrew works out the shared dependencies once.
+                    progress("Installing \(feature.formulae.joined(separator: ", "))…")
+                    try await run(brew, ["install", "--formula"] + feature.formulae, named: "Homebrew",
+                                  environment: brewEnvironment, log: log, onOutput: installProgress(progress))
+                }
+                for cask in feature.casks {
+                    progress("Installing \(cask)…")
+                    try await run(brew, ["install", "--cask", cask], named: "Homebrew", environment: brewEnvironment,
+                                  log: log, onOutput: installProgress(progress))
+                }
+            }
         }
+
+        // 3. Extra steps. They do not touch Homebrew's folders, so they run while other features install.
         for step in feature.extraSteps {
+            try Task.checkCancellation()
             switch step {
             case .fontEnvironment:
                 progress("Setting up the font tools…")
-                try await setUpFonts(tools: tools, log: &log)
+                try await setUpFonts(tools: tools, log: log)
             case .codeModel:
                 progress("Downloading the code model. This can take a while…")
-                try await pullCodeModel(codeModel, tools: tools, log: &log)
+                try await pullCodeModel(codeModel, tools: tools, coordinator: coordinator, log: log)
             case .typeScript:
                 progress("Installing TypeScript…")
                 guard let npm = tools.locate(["npm"]) else {
                     throw ConversionError.toolNotFound("npm, which comes with Node.js")
                 }
-                try await run(npm, ["install", "-g", "typescript"], named: "npm", log: &log)
+                try await run(npm, ["install", "-g", "typescript"], named: "npm", log: log)
             }
         }
-        return log
+        return log.lines
     }
 
     /// Downloads one code model through Ollama. The model list in Settings uses this.
-    public static func pullModel(_ name: String, tools: ToolLocator,
+    public static func pullModel(_ name: String, tools: ToolLocator, coordinator: InstallCoordinator = .shared,
                                  progress: @escaping @Sendable (String) -> Void) async throws -> [String] {
-        var log: [String] = []
+        let log = InstallLog()
         progress("Downloading \(name). This can take a while…")
-        try await pullCodeModel(name, tools: tools, log: &log)
-        return log
+        try await pullCodeModel(name, tools: tools, coordinator: coordinator, log: log)
+        return log.lines
     }
 
-    private static func setUpFonts(tools: ToolLocator, log: inout [String]) async throws {
+    /// A line of Homebrew output as a short step, such as "Installing ffmpeg…". Nil for any other line.
+    public static func step(fromBrewLine line: String) -> String? {
+        // "==> Pouring ffmpeg--8.1.1.arm64_tahoe.bottle.tar.gz" names the package being unpacked.
+        guard line.hasPrefix("==> Pouring ") else { return nil }
+        let name = line.dropFirst("==> Pouring ".count).components(separatedBy: "--").first ?? ""
+        return name.isEmpty ? nil : "Installing \(name)…"
+    }
+
+    private static func installProgress(_ progress: @escaping @Sendable (String) -> Void) -> @Sendable (String) -> Void {
+        { line in
+            if let step = step(fromBrewLine: line) { progress(step) }
+        }
+    }
+
+    /// The packages Homebrew would download for these arguments, from a dry run. Empty when the dry run fails, in which
+    /// case the install simply downloads for itself.
+    private static func plannedDownloads(_ brew: URL, _ arguments: [String], log: InstallLog) async -> [String] {
+        log.add("Homebrew: brew \(arguments.joined(separator: " "))")
+        guard let result = try? await ProcessRunner.run(brew, arguments: arguments, environment: brewEnvironment),
+              result.exitCode == 0 else {
+            log.add("could not work out what to download in advance, so the install will download for itself")
+            return []
+        }
+        return packageNames(fromDryRun: result.stdout)
+    }
+
+    /// The package names in a `brew install --dry-run` report. Each "==> Would install ..." heading is followed by one
+    /// "name version" line for every package, up to the next heading.
+    public static func packageNames(fromDryRun output: String) -> [String] {
+        var names: [String] = []
+        var listing = false
+        for raw in output.split(separator: "\n", omittingEmptySubsequences: true) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("==>") {
+                listing = line.hasPrefix("==> Would install")
+                continue
+            }
+            guard listing, !line.hasPrefix("Already downloaded"), let name = line.split(separator: " ").first else { continue }
+            let text = String(name)
+            if !names.contains(text) { names.append(text) }
+        }
+        return names
+    }
+
+    /// Downloads ahead of the install. A failure here is not fatal, because the install downloads again by itself and
+    /// then reports the real problem.
+    private static func download(_ brew: URL, _ arguments: [String], coordinator: InstallCoordinator,
+                                 log: InstallLog) async {
+        do {
+            try await coordinator.downloads.withSlot {
+                log.add("Homebrew: brew \(arguments.joined(separator: " "))")
+                let result = try await ProcessRunner.run(brew, arguments: arguments, environment: brewEnvironment)
+                if result.exitCode != 0 {
+                    log.add("the download did not finish, so the install will try again: \(Converter.lastLines(result.stderr))")
+                }
+            }
+        } catch {
+            log.add("the download was stopped: \(error.localizedDescription)")
+        }
+    }
+
+    private static func setUpFonts(tools: ToolLocator, log: InstallLog) async throws {
         guard let python = tools.locate(["python3.12"]) else { throw ConversionError.toolNotFound("Python 3.12") }
         let environment = ToolFeature.fontEnvironment
         if !FileManager.default.isExecutableFile(atPath: environment.appendingPathComponent("bin/python").path) {
-            try await run(python, ["-m", "venv", environment.path], named: "Python", log: &log)
+            try await run(python, ["-m", "venv", environment.path], named: "Python", log: log)
         }
         try await run(environment.appendingPathComponent("bin/pip"), ["install", "fonttools", "brotli"],
-                      named: "pip", log: &log)
+                      named: "pip", log: log)
     }
 
-    private static func pullCodeModel(_ model: String, tools: ToolLocator, log: inout [String]) async throws {
+    private static func pullCodeModel(_ model: String, tools: ToolLocator, coordinator: InstallCoordinator,
+                                      log: InstallLog) async throws {
         guard let ollama = tools.locate(["ollama"]) else { throw ConversionError.toolNotFound("Ollama") }
         guard await OllamaClient(model: model).ensureRunning(tools: tools) else {
             throw ConversionError.ollamaUnavailable("Could not start Ollama. Open the Ollama app, then try again.")
         }
-        try await run(ollama, ["pull", model], named: "Ollama", log: &log)
+        // A model is a large download, so it takes one of the download slots like any other.
+        try await coordinator.downloads.withSlot {
+            try await run(ollama, ["pull", model], named: "Ollama", log: log)
+        }
     }
 
-    private static func run(_ executable: URL, _ arguments: [String], named: String, log: inout [String]) async throws {
-        log.append("\(named): \(executable.lastPathComponent) \(arguments.joined(separator: " "))")
-        let result = try await ProcessRunner.run(executable, arguments: arguments)
+    private static func run(_ executable: URL, _ arguments: [String], named: String,
+                            environment: [String: String] = [:], log: InstallLog,
+                            onOutput: (@Sendable (String) -> Void)? = nil) async throws {
+        log.add("\(named): \(executable.lastPathComponent) \(arguments.joined(separator: " "))")
+        let result = try await ProcessRunner.run(executable, arguments: arguments, environment: environment,
+                                                 onOutput: onOutput)
         guard result.exitCode == 0 else {
             throw ConversionError.toolFailed(tool: named, exitCode: result.exitCode,
                                              message: Converter.lastLines(result.stderr + result.stdout))
         }
+    }
+}
+
+/// The lines an install writes to its log. Several installs run at once, so adding a line is thread safe.
+final class InstallLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [String] = []
+
+    func add(_ line: String) {
+        lock.lock()
+        stored.append(line)
+        lock.unlock()
+    }
+
+    var lines: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return stored
     }
 }

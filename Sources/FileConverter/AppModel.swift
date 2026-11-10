@@ -157,9 +157,8 @@ final class AppModel {
     private(set) var items: [Item] = []
     private(set) var features: [FeatureState] = []
     private(set) var homebrewInstalled = false
-    /// The feature being installed right now, and the step it is on.
-    private(set) var installingID: String?
-    private(set) var installStep: String?
+    /// Every install and download running now, each with the step it is on. Several can run at the same time.
+    private(set) var installSteps: [String: String] = [:]
     /// A short message about files that could not be added. Shown above the list until dismissed.
     private(set) var notice: String?
     /// The result of the last install. Shown above the list until dismissed.
@@ -172,7 +171,8 @@ final class AppModel {
     private var waiting: [UUID] = []
     /// How many formats each kind of file could become with every tool installed. It never changes while the app runs.
     @ObservationIgnored private var allTargetCounts: [String: Int] = [:]
-    static let maxConcurrent = 2
+    /// How many conversions run at once. It follows this Mac's processor cores.
+    static let maxConcurrent = ResourcePlan.parallelConversions()
 
     init() {
         refreshTools()
@@ -188,7 +188,16 @@ final class AppModel {
         items.contains { $0.phase == .ready && $0.selectedTarget != nil && !$0.isBlocked && !$0.needsCustomSize }
     }
     var missingFeatures: [FeatureState] { features.filter { !$0.installed } }
-    var isInstalling: Bool { installingID != nil }
+    var isInstalling: Bool { !installSteps.isEmpty }
+    func isInstalling(_ id: String) -> Bool { installSteps[id] != nil }
+    /// What the status bar says: the step when one install runs, and a count when several do.
+    var installSummary: String {
+        switch installSteps.count {
+        case 0: return ""
+        case 1: return installSteps.values.first ?? "Installing…"
+        default: return "Installing \(installSteps.count) things at once…"
+        }
+    }
     private var runningCount: Int { items.filter { $0.phase == .converting }.count }
 
     /// Whether a conversion tool is installed. The menus offer only conversions that can run now.
@@ -455,50 +464,65 @@ final class AppModel {
         installedModels = Set(CodeModels.catalog.filter(\.isInstalled).map(\.name))
     }
 
-    /// Downloads one code model through Ollama. It shares the single install slot with the features.
+    /// Downloads one code model through Ollama. It runs next to any installs, and next to other downloads.
     func installModel(_ entry: CodeModel) {
-        guard installingID == nil else { return }
-        installingID = "model:\(entry.name)"
-        installStep = "Starting…"
-        toolNotice = nil
+        let id = "model:\(entry.name)"
+        guard !isInstalling(id) else { return }
+        installSteps[id] = "Starting…"
         Task { [weak self] in
             do {
                 _ = try await ToolInstaller.pullModel(entry.name, tools: ToolLocator()) { step in
-                    Task { @MainActor in self?.installStep = step }
+                    Task { @MainActor in self?.setInstallStep(id, step) }
                 }
-                self?.toolNotice = "\(entry.title) is downloaded. Choose it in Settings → Code to use it."
+                self?.addToolNotice("\(entry.title) is downloaded. Choose it in Settings → Code to use it.")
             } catch {
-                self?.toolNotice = "\(entry.title) could not be downloaded. \(error.localizedDescription)"
+                self?.addToolNotice("\(entry.title) could not be downloaded. \(error.localizedDescription)")
             }
-            self?.installingID = nil
-            self?.installStep = nil
-            self?.refreshTools()
-            self?.rebuildTargets()
+            self?.finishInstall(id)
         }
     }
 
-    /// Installs one optional feature with Homebrew. Only one install runs at a time.
+    /// Installs one optional feature with Homebrew. Several features can be installed at once: their downloads run side
+    /// by side, and the installs themselves take turns.
     func install(_ state: FeatureState) {
-        guard installingID == nil else { return }
-        installingID = state.id
-        installStep = "Starting…"
-        toolNotice = nil
+        guard !isInstalling(state.id) else { return }
+        installSteps[state.id] = "Starting…"
         let feature = state.feature
+        let id = state.id
         let codeModel = AppSettings.ollamaModel
         Task { [weak self] in
             do {
                 _ = try await ToolInstaller.install(feature, tools: ToolLocator(), codeModel: codeModel) { step in
-                    Task { @MainActor in self?.installStep = step }
+                    Task { @MainActor in self?.setInstallStep(id, step) }
                 }
-                self?.toolNotice = "\(feature.title) is ready. Its formats now appear in the menus."
+                self?.addToolNotice("\(feature.title) is ready. Its formats now appear in the menus.")
             } catch {
-                self?.toolNotice = "\(feature.title) could not be installed. \(error.localizedDescription)"
+                self?.addToolNotice("\(feature.title) could not be installed. \(error.localizedDescription)")
             }
-            self?.installingID = nil
-            self?.installStep = nil
-            self?.refreshTools()
-            self?.rebuildTargets()
+            self?.finishInstall(id)
         }
+    }
+
+    /// Installs every feature that is not installed yet, all at once.
+    func installAllMissing() {
+        for state in missingFeatures where !isInstalling(state.id) { install(state) }
+    }
+
+    private func setInstallStep(_ id: String, _ step: String) {
+        // A late update from an install that has already finished must not bring it back.
+        guard installSteps[id] != nil else { return }
+        installSteps[id] = step
+    }
+
+    private func finishInstall(_ id: String) {
+        installSteps[id] = nil
+        refreshTools()
+        rebuildTargets()
+    }
+
+    /// Results of installs that finish near each other are all kept, one per line, until dismissed.
+    private func addToolNotice(_ message: String) {
+        toolNotice = [toolNotice, message].compactMap { $0 }.joined(separator: "\n")
     }
 
     func dismissToolNotice() { toolNotice = nil }
@@ -556,5 +580,7 @@ final class AppModel {
             items[2].progress = ConversionProgress("Converting", fraction: 0.45)
         }
         if items.count > 6 { items[6].phase = .converting }
+        // Several installs at once, as the Tools tab shows them.
+        installSteps = ["video": "Downloading…", "office": "Waiting for another install to finish…", "markdown": "Installing pandoc…"]
     }
 }
