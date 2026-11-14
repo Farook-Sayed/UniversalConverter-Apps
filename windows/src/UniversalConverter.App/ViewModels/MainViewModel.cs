@@ -57,8 +57,16 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Opens a PDF that was just added, off the UI thread, because a large PDF takes a while.</summary>
     private async Task OpenPdfAsync(ItemViewModel item)
     {
-        var passwords = _typedPasswords.ToList();
-        var opened = await Task.Run(() => PdfUnlocker.Open(item.File.Path, passwords));
+        var tried = _typedPasswords.ToList();
+        PdfOpened opened;
+        while (true)
+        {
+            var passwords = tried;
+            opened = await Task.Run(() => PdfUnlocker.Open(item.File.Path, passwords));
+            // A password typed for another file while this one was being checked may fit this one too.
+            if (opened is not PdfOpened.NeedsPassword || _typedPasswords.Count <= tried.Count) break;
+            tried = _typedPasswords.ToList();
+        }
         if (!Items.Contains(item))
         {
             if (opened is PdfOpened.Unlocked gone) try { Directory.Delete(Path.GetDirectoryName(gone.Copy)!, true); } catch { }
@@ -94,6 +102,12 @@ public partial class MainViewModel : ObservableObject
         var destination = OutputNaming.UniquePath(stem, "pdf", OutputFolder);
         File.Copy(copy, destination);
         return destination;
+    }
+
+    /// <summary>Removes every unlocked copy. Called when the app closes, so no decrypted file stays on disk.</summary>
+    public void DiscardAllCopies()
+    {
+        foreach (var item in Items) item.DiscardCopy();
     }
 
     public MainViewModel()

@@ -37,13 +37,14 @@ public sealed class PasswordWindow : Window
             FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis,
         };
         var box = new TextBox { PasswordChar = '•', Watermark = "Password" };
+        Avalonia.Automation.AutomationProperties.SetName(box, "PDF password");
         var message = new TextBlock { Foreground = Brushes.DarkOrange, TextWrapping = TextWrapping.Wrap, FontSize = 12, IsVisible = false };
         var privacy = new TextBlock
         {
             Text = "The file is opened on this PC. The password is not saved or sent anywhere. The original file is not changed.",
             TextWrapping = TextWrapping.Wrap, FontSize = 11, Opacity = 0.65,
         };
-        var open = new Button { Content = "Open", MinWidth = 100, HorizontalContentAlignment = HorizontalAlignment.Center, IsDefault = true };
+        var open = new Button { Content = "Open", MinWidth = 100, HorizontalContentAlignment = HorizontalAlignment.Center };
         open.Classes.Add("accent");
         var later = new Button { Content = "Not now", MinWidth = 100, HorizontalContentAlignment = HorizontalAlignment.Center, IsCancel = true };
         later.Click += (_, _) => Close();
@@ -67,7 +68,7 @@ public sealed class PasswordWindow : Window
             box.Focus();
         }
         open.Click += async (_, _) => await Unlock();
-        box.KeyDown += async (_, e) => { if (e.Key == Avalonia.Input.Key.Enter) await Unlock(); };
+        box.KeyDown += async (_, e) => { if (e.Key == Avalonia.Input.Key.Enter) { e.Handled = true; await Unlock(); } };
         Opened += (_, _) => box.Focus();
 
         Content = new StackPanel

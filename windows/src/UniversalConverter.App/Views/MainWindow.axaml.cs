@@ -14,10 +14,18 @@ public partial class MainWindow : Window
         AddHandler(DragDrop.DragOverEvent, (_, e) => e.DragEffects = e.DataTransfer.Contains(DataFormat.File) ? DragDropEffects.Copy : DragDropEffects.None);
         AddHandler(DragDrop.DropEvent, OnDrop);
         Closing += OnClosing;
-        DataContextChanged += (_, _) => { if (Model is { } model) model.PasswordNeeded += () => _ = AskForPasswordAsync(); };
+        DataContextChanged += (_, _) =>
+        {
+            if (_subscribedTo is not null) _subscribedTo.PasswordNeeded -= OnPasswordNeeded;
+            _subscribedTo = Model;
+            if (_subscribedTo is not null) _subscribedTo.PasswordNeeded += OnPasswordNeeded;
+        };
+        Closed += (_, _) => Model?.DiscardAllCopies();
     }
 
     private bool _confirmedClose;
+    private MainViewModel? _subscribedTo;
+    private void OnPasswordNeeded() => Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = AskForPasswordAsync());
 
     /// <summary>Closing while files are being converted would lose that work, so the user is asked first.</summary>
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
@@ -70,10 +78,17 @@ public partial class MainWindow : Window
 
     private async void OnEnterPassword(object? sender, RoutedEventArgs e) => await AskForPasswordAsync();
 
-    private void OnSaveUnlocked(object? sender, RoutedEventArgs e)
+    private async void OnSaveUnlocked(object? sender, RoutedEventArgs e)
     {
         if (ItemOf(sender) is not { } item || Model is not { } model) return;
-        if (model.SaveUnlockedCopy(item) is { } saved) Shell.Reveal(saved);
+        try
+        {
+            if (model.SaveUnlockedCopy(item) is { } saved) Shell.Reveal(saved);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            await ConfirmWindow.AskAsync(this, "Could not save the copy", ex.Message, "OK", "Close");
+        }
     }
 
     /// <summary>Asks for the password of the locked PDFs. One password is tried on all of them.</summary>

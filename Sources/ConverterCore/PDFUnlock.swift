@@ -48,6 +48,11 @@ public enum PDFUnlocker {
             guard let page = document.page(at: number)?.copy() as? PDFPage else { continue }
             copy.insert(page, at: copy.pageCount)
         }
+        // The title, author and similar details are kept. Only the standard text entries are copied.
+        let kept: [PDFDocumentAttribute] = [.titleAttribute, .authorAttribute, .subjectAttribute, .keywordsAttribute]
+        var attributes: [AnyHashable: Any] = [:]
+        for key in kept { attributes[key] = document.documentAttributes?[key] }
+        copy.documentAttributes = attributes.compactMapValues { $0 }
         guard copy.pageCount == document.pageCount, copy.write(to: output),
               PDFDocument(url: output)?.isEncrypted == false else {
             try? FileManager.default.removeItem(at: output)

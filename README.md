@@ -129,7 +129,7 @@ The matrix converts each sample file to every format offered for it and checks e
 - RAR files can be read, but not written.
 - Camera RAW depends on macOS supporting the camera. It is tested with a generated DNG file, not with files from each brand.
 - Text recognition works best on printed text. Handwriting and unusual fonts are read less well, and a table is read column by column.
-- Password-protected PDFs: a PDF that only has restrictions (no printing or copying) opens at once. One with a password asks for it, and a password that fits several files is typed once. The password must be known: the app never guesses one. Opened PDFs are converted from a copy without protection, and **Save Copy Without Password** keeps that copy. The copy is rebuilt page by page, so the text, pictures and drawings stay, but bookmarks and form fields do not.
+- Password-protected PDFs: a PDF that only has restrictions (no printing or copying) opens at once. One with a password asks for it, and a password that fits several files is typed once. The password must be known: the app never guesses one. Opened PDFs are converted from a copy without protection, and **Save Copy Without Password** keeps that copy. The copy is rebuilt page by page, so the text, pictures and drawings stay, but bookmarks, links inside the document and form fields do not.
 - A progress percentage is shown for videos, audio, scanned PDFs, translated code, custom PDF sizes, merges and conversions in several steps. Other conversions show a spinner.
 - The app is not yet signed with a Developer ID or notarized, so macOS and some security software may warn about it.
 - Only tested on Apple silicon.

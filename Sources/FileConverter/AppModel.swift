@@ -203,6 +203,11 @@ final class AppModel {
         refreshTools()
         // Work folders left by a run that quit in the middle of a conversion can be large, so clear the old ones.
         Task.detached(priority: .background) { Converter.removeStaleWork() }
+        // Unlocked copies of password-protected PDFs are removed as soon as the app quits normally.
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil,
+                                               queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.discardAllCopies() }
+        }
     }
 
     var hasItems: Bool { !items.isEmpty }
@@ -421,9 +426,16 @@ final class AppModel {
     /// first. Otherwise the password window asks. The work runs off the main thread, because a large PDF takes a while.
     private func openPDF(_ id: UUID) {
         guard let url = items.first(where: { $0.id == id })?.file.url else { return }
-        let passwords = typedPasswords
         Task { [weak self] in
-            let opened = await Task.detached { PDFUnlocker.open(url, trying: passwords) }.value
+            var tried = self?.typedPasswords ?? []
+            var opened: PDFUnlocker.Opened = .needsPassword
+            while true {
+                let passwords = tried
+                opened = await Task.detached { PDFUnlocker.open(url, trying: passwords) }.value
+                // A password typed for another file while this one was being checked may fit this one too.
+                guard opened == .needsPassword, let model = self, model.typedPasswords.count > tried.count else { break }
+                tried = model.typedPasswords
+            }
             self?.finishOpening(id, opened)
         }
     }
@@ -491,6 +503,10 @@ final class AppModel {
         } catch {
             notice = "Could not save the unlocked copy: \(error.localizedDescription)"
         }
+    }
+
+    func discardAllCopies() {
+        for item in items { discardCopy(of: item) }
     }
 
     private func discardCopy(of item: Item) {

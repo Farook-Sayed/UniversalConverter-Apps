@@ -19,11 +19,17 @@ cd "$(dirname "$0")/.."
 : "${DEVELOPER_ID:?Set DEVELOPER_ID to the name of your Developer ID Application certificate}"
 PROFILE="${1:-converter-notary}"
 
+# The 10-character team id is the part of the certificate name in brackets.
+TEAM_ID=$(echo "$DEVELOPER_ID" | sed -n 's/.*(\([A-Z0-9]\{10\}\)).*/\1/p')
+: "${TEAM_ID:?Could not read the team id from DEVELOPER_ID. It should look like: Developer ID Application: Name (ABCDE12345)}"
+
 xcodegen generate >/dev/null
 mkdir -p build
+# A build from make-app.sh is signed ad hoc, so it must not be reused here.
+rm -rf build/xcode
 echo "Building and signing with: $DEVELOPER_ID"
 xcodebuild -project "Universal Converter.xcodeproj" -scheme "Universal Converter" -configuration Release \
-  -derivedDataPath build/xcode CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$DEVELOPER_ID" \
+  -derivedDataPath build/xcode CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_IDENTITY="$DEVELOPER_ID" PROVISIONING_PROFILE_SPECIFIER="" \
   ENABLE_HARDENED_RUNTIME=YES OTHER_CODE_SIGN_FLAGS="--timestamp" build >build/xcodebuild.log 2>&1 \
   || { grep -E "error:" build/xcodebuild.log | tail -20; echo "The build failed. See build/xcodebuild.log"; exit 1; }
 

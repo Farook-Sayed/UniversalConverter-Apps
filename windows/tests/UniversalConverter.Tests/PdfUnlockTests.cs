@@ -137,4 +137,29 @@ public class PdfUnlockTests : IDisposable
         for (int i = 0; i < 200 && !done(); i++) await Task.Delay(50);
         Assert.True(done());
     }
+
+    [Fact]
+    public void DamagedFileIsNotReportedAsProtected()
+    {
+        var path = _temp.File_("broken.pdf");
+        File.WriteAllText(path, "this is not a pdf");
+        Assert.IsType<PdfOpened.NotProtected>(PdfUnlocker.Open(path, ["x"]));
+    }
+
+    [Fact]
+    public void UnreadableEncryptedFileIsReportedAsProtectedWithoutAPasswordPrompt()
+    {
+        var path = _temp.File_("odd.pdf");
+        File.WriteAllText(path, "%PDF-1.7\n1 0 obj\n<< /Filter /Standard /V 9 >>\nendobj\ntrailer\n<< /Encrypt 1 0 R >>\n%%EOF");
+        Assert.IsType<PdfOpened.Unsupported>(PdfUnlocker.Open(path, ["x"]));
+    }
+
+    [Fact]
+    public void UnlockedCopyKeepsTheTitle()
+    {
+        var path = Write("t.pdf", SharedPassword);
+        var opened = Assert.IsType<PdfOpened.Unlocked>(PdfUnlocker.Open(path, ["shared-pw"]));
+        try { using var copy = PdfDocument.Open(opened.Copy); Assert.NotNull(copy.Information); }
+        finally { Directory.Delete(Path.GetDirectoryName(opened.Copy)!, true); }
+    }
 }

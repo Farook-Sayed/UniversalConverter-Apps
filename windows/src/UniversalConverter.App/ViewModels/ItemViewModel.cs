@@ -8,7 +8,7 @@ namespace UniversalConverter.App.ViewModels;
 public enum ItemPhase { Ready, Converting, Finished, Failed }
 
 /// <summary>Whether a PDF has a password. A locked PDF cannot be converted until its password is entered.</summary>
-public enum PdfLock { None, Checking, NeedsPassword, Unlocked }
+public enum PdfLock { None, Checking, NeedsPassword, Unlocked, Unsupported }
 
 public sealed record FindingRow(string Message, IBrush Brush);
 
@@ -87,6 +87,7 @@ public partial class ItemViewModel : ObservableObject
         {
             case PdfOpened.Unlocked unlocked: UnlockedPath = unlocked.Copy; Lock = PdfLock.Unlocked; break;
             case PdfOpened.NeedsPassword: Lock = PdfLock.NeedsPassword; break;
+            case PdfOpened.Unsupported: Lock = PdfLock.Unsupported; break;
             default: Lock = PdfLock.None; break;
         }
     }
@@ -151,6 +152,8 @@ public partial class ItemViewModel : ObservableObject
         Findings.Clear();
         if (Lock == PdfLock.Checking)
             Findings.Add(new FindingRow("Checking whether this PDF has a password…", FindingBrushes.Blocking));
+        else if (Lock == PdfLock.Unsupported)
+            Findings.Add(new FindingRow("This PDF uses a kind of protection that this version cannot open.", FindingBrushes.Blocking));
         else if (Lock == PdfLock.NeedsPassword)
             Findings.Add(new FindingRow("This PDF has a password. Enter it to open the file.", FindingBrushes.Blocking));
         else if (SelectedRoute is { } route)

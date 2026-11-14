@@ -13,6 +13,8 @@ public abstract record PdfOpened
     public sealed record Unlocked(string Copy, string? Password) : PdfOpened;
     /// <summary>A password is needed, and none of the passwords tried fits.</summary>
     public sealed record NeedsPassword : PdfOpened;
+    /// <summary>The PDF is encrypted in a way this version cannot read, so no password can open it here.</summary>
+    public sealed record Unsupported : PdfOpened;
 }
 
 /// <summary>
@@ -29,7 +31,7 @@ public static class PdfUnlocker
     {
         var first = Try(path, null);
         if (first is Result.Open plain) return plain.Encrypted ? (PdfOpened?)Copy(path, "") ?? new PdfOpened.NeedsPassword() : new PdfOpened.NotProtected();
-        if (first is Result.NotPdf) return new PdfOpened.NotProtected();
+        if (first is Result.Failed) return LooksEncrypted(path) ? new PdfOpened.Unsupported() : new PdfOpened.NotProtected();
         foreach (var password in passwords)
             if (Try(path, password) is Result.Open && Copy(path, password) is { } opened) return opened;
         return new PdfOpened.NeedsPassword();
@@ -44,7 +46,12 @@ public static class PdfUnlocker
     {
         using var document = Load(path, password) ?? throw ConversionException.Unsupported("That password does not open this PDF.");
         var builder = new PdfDocumentBuilder();
-        // The pages keep their text, images and drawings. Bookmarks and form fields of the original are not carried over.
+        var info = document.Information;
+        builder.DocumentInformation = new PdfDocumentBuilder.DocumentInformationBuilder
+        {
+            Title = info.Title, Author = info.Author, Subject = info.Subject, Keywords = info.Keywords,
+        };
+        // The pages keep their text, images and drawings. Bookmarks, links inside the document and form fields of the original are not carried over.
         for (int number = 1; number <= document.NumberOfPages; number++) builder.AddPage(document, number);
         var bytes = builder.Build();
         Directory.CreateDirectory(Path.GetDirectoryName(output)!);
@@ -71,7 +78,7 @@ public static class PdfUnlocker
     {
         public sealed record Open(bool Encrypted) : Result;
         public sealed record NeedsPassword : Result;
-        public sealed record NotPdf : Result;
+        public sealed record Failed : Result;
     }
 
     private static Result Try(string path, string? password)
@@ -82,7 +89,30 @@ public static class PdfUnlocker
             return new Result.Open(document.IsEncrypted);
         }
         catch (PdfDocumentEncryptedException) { return new Result.NeedsPassword(); }
-        catch { return new Result.NotPdf(); }
+        catch { return new Result.Failed(); }
+    }
+
+    /// <summary>
+    /// True when the start or end of the file names an encryption dictionary. A PDF that cannot be opened for that reason
+    /// is reported as protected, instead of failing later with a general error.
+    /// </summary>
+    private static bool LooksEncrypted(string path)
+    {
+        try
+        {
+            using var stream = File.OpenRead(path);
+            var marker = "/Encrypt"u8;
+            const int Window = 64 * 1024;
+            var buffer = new byte[(int)Math.Min(stream.Length, Window)];
+            foreach (var offset in new[] { 0L, Math.Max(0, stream.Length - Window) })
+            {
+                stream.Position = offset;
+                int read = stream.Read(buffer, 0, buffer.Length);
+                if (buffer.AsSpan(0, read).IndexOf(marker) >= 0) return true;
+            }
+        }
+        catch { /* an unreadable file is reported by the conversion */ }
+        return false;
     }
 
     private static PdfDocument? Load(string path, string password)

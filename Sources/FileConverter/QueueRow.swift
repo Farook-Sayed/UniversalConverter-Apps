@@ -44,9 +44,6 @@ struct QueueRow: View {
         if item.lock == .needsPassword && !item.isBusy {
             HStack(spacing: 8) {
                 Image(systemName: "lock.fill").foregroundStyle(.orange)
-                Text("Password needed")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 Button("Enter Password…") { model.askForPassword() }
                     .controlSize(.small)

@@ -72,3 +72,26 @@ extension PDFUnlockTests {
         XCTAssertNil(PDFUnlocker.open(url, password: "bad"))
     }
 }
+
+extension PDFUnlockTests {
+    func testDamagedFileIsNotReportedAsProtected() throws {
+        let url = folder.appendingPathComponent("broken.pdf")
+        try Data("this is not a pdf".utf8).write(to: url)
+        XCTAssertEqual(PDFUnlocker.open(url, trying: ["x"]), .notProtected)
+    }
+
+    func testUnlockedCopyKeepsRotationAndTitle() throws {
+        let document = PDFDocument()
+        let page = PDFPage()
+        page.rotation = 90
+        document.insert(page, at: 0)
+        document.documentAttributes = [PDFDocumentAttribute.titleAttribute: "Quarterly report"]
+        let url = folder.appendingPathComponent("rotated.pdf")
+        XCTAssertTrue(document.write(to: url, withOptions: [.userPasswordOption: "pw", .ownerPasswordOption: "pw2"]))
+        let output = folder.appendingPathComponent("rotated-open.pdf")
+        try PDFUnlocker.writeUnlocked(url, password: "pw", to: output)
+        let copy = try XCTUnwrap(PDFDocument(url: output))
+        XCTAssertEqual(copy.page(at: 0)?.rotation, 90)
+        XCTAssertEqual(copy.documentAttributes?[PDFDocumentAttribute.titleAttribute] as? String, "Quarterly report")
+    }
+}
