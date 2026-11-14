@@ -313,7 +313,7 @@ enum PDFMerger {
                     throw ConversionError.unsupported("\(name) could not be opened as a PDF.")
                 }
                 if source.isLocked {
-                    throw ConversionError.unsupported("\(name) is password-protected. Remove the password first, then merge it.")
+                    throw ConversionError.unsupported("\(name) is password-protected. Enter its password in the file list first, then merge it.")
                 }
                 for number in 0..<source.pageCount {
                     // A page is copied, because PDFKit pages belong to the document they came from.

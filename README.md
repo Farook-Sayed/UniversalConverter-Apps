@@ -12,7 +12,7 @@ It comes as two native apps from one codebase:
 | Code | This folder, the Swift packages and `Sources/` | [`windows/`](windows/README.md) |
 | Guide | [GUIDE.md](GUIDE.md) | [windows/README.md](windows/README.md) |
 
-Everything runs on your computer. Nothing is uploaded. Code translation uses a model that runs locally through [Ollama](https://ollama.com).
+Everything runs on your computer. Nothing is uploaded, and the apps collect no data (see [PRIVACY.md](PRIVACY.md)). Code translation uses a model that runs locally through [Ollama](https://ollama.com).
 
 <p align="center">
   <img src="docs/images/files-light.png" width="48%" alt="The macOS app's file list in light mode">
@@ -104,7 +104,7 @@ open "build/Universal Converter.app"
 
 `make-app.sh` generates the Xcode project from `project.yml` and builds it. The generated `Universal Converter.xcodeproj` is also checked in, so you can open it in Xcode directly.
 
-The app is signed ad hoc, so it runs on the Mac that built it. To share a build, sign it with your own Developer ID and notarize it. Change the bundle identifier in `project.yml` and `Resources/Info.plist` first.
+The app is signed ad hoc, so it runs on the Mac that built it. To share a build, sign it with your own Developer ID and notarize it with `scripts/sign-and-notarize.sh`; see [DISTRIBUTION.md](DISTRIBUTION.md). The bundle identifier is `dev.cosmion.converter`. Change it in `project.yml` and `Resources/Info.plist` if you publish your own build.
 
 ### Tests
 
@@ -129,6 +129,7 @@ The matrix converts each sample file to every format offered for it and checks e
 - RAR files can be read, but not written.
 - Camera RAW depends on macOS supporting the camera. It is tested with a generated DNG file, not with files from each brand.
 - Text recognition works best on printed text. Handwriting and unusual fonts are read less well, and a table is read column by column.
+- Password-protected PDFs: a PDF that only has restrictions (no printing or copying) opens at once. One with a password asks for it, and a password that fits several files is typed once. The password must be known: the app never guesses one. Opened PDFs are converted from a copy without protection, and **Save Copy Without Password** keeps that copy. The copy is rebuilt page by page, so the text, pictures and drawings stay, but bookmarks and form fields do not.
 - A progress percentage is shown for videos, audio, scanned PDFs, translated code, custom PDF sizes, merges and conversions in several steps. Other conversions show a spinner.
 - The app is not yet signed with a Developer ID or notarized, so macOS and some security software may warn about it.
 - Only tested on Apple silicon.
@@ -156,7 +157,7 @@ Icon/                    The macOS app icon, in Icon Composer format.
 docs/                    Images for this page.
 ```
 
-More: [GUIDE.md](GUIDE.md) (using the Mac app), [DESIGN.md](DESIGN.md) (design rules), [CONTRIBUTING.md](CONTRIBUTING.md).
+More: [GUIDE.md](GUIDE.md) (using the Mac app), [DESIGN.md](DESIGN.md) (design rules), [DESIGN_LOG.md](DESIGN_LOG.md) (decisions), [CONTRIBUTING.md](CONTRIBUTING.md), [PRIVACY.md](PRIVACY.md), [DISTRIBUTION.md](DISTRIBUTION.md) (signing, publishing and the law).
 
 ## Continuous integration
 
@@ -165,4 +166,4 @@ More: [GUIDE.md](GUIDE.md) (using the Mac app), [DESIGN.md](DESIGN.md) (design r
 
 ## License
 
-[MIT](LICENSE). The tools the apps run are separate programs with their own licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[MIT](LICENSE). The tools the apps run are separate programs with their own licenses, and the Windows app contains libraries with theirs. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The names of the programs and systems the apps work with belong to their owners; Universal Converter is not affiliated with them.

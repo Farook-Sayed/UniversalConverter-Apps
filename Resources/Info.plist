@@ -7,7 +7,7 @@
     <key>CFBundleDisplayName</key>
     <string>Universal Converter</string>
     <key>CFBundleIdentifier</key>
-    <string>local.universalconverter.app</string>
+    <string>dev.cosmion.converter</string>
     <key>CFBundleExecutable</key>
     <string>Universal Converter</string>
     <key>CFBundlePackageType</key>
@@ -35,6 +35,12 @@
             </array>
         </dict>
     </array>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2026 Farook Sayed. MIT License.</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>

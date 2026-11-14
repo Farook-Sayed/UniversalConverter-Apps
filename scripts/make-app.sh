@@ -19,5 +19,6 @@ fi
 APP="build/Universal Converter.app"
 rm -rf "$APP"
 cp -R "build/xcode/Build/Products/Release/Universal Converter.app" "$APP"
-codesign --force --deep --sign - "$APP"
+# --options runtime keeps the hardened runtime that notarization needs (see scripts/sign-and-notarize.sh).
+codesign --force --deep --options runtime --sign - "$APP"
 echo "Built: $APP"

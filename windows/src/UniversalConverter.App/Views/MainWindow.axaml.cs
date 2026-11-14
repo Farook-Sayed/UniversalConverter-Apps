@@ -14,6 +14,7 @@ public partial class MainWindow : Window
         AddHandler(DragDrop.DragOverEvent, (_, e) => e.DragEffects = e.DataTransfer.Contains(DataFormat.File) ? DragDropEffects.Copy : DragDropEffects.None);
         AddHandler(DragDrop.DropEvent, OnDrop);
         Closing += OnClosing;
+        DataContextChanged += (_, _) => { if (Model is { } model) model.PasswordNeeded += () => _ = AskForPasswordAsync(); };
     }
 
     private bool _confirmedClose;
@@ -64,6 +65,25 @@ public partial class MainWindow : Window
     private void OnCancel(object? sender, RoutedEventArgs e) => ItemOf(sender)?.Cancel();
     private void OnRemove(object? sender, RoutedEventArgs e) { if (ItemOf(sender) is { } item) Model?.Remove(item); }
     private void OnReveal(object? sender, RoutedEventArgs e) { if (ItemOf(sender)?.OutputPath is { } path) Shell.Reveal(path); }
+
+    private bool _askingForPassword;
+
+    private async void OnEnterPassword(object? sender, RoutedEventArgs e) => await AskForPasswordAsync();
+
+    private void OnSaveUnlocked(object? sender, RoutedEventArgs e)
+    {
+        if (ItemOf(sender) is not { } item || Model is not { } model) return;
+        if (model.SaveUnlockedCopy(item) is { } saved) Shell.Reveal(saved);
+    }
+
+    /// <summary>Asks for the password of the locked PDFs. One password is tried on all of them.</summary>
+    private async Task AskForPasswordAsync()
+    {
+        if (_askingForPassword || Model is not { LockedCount: > 0 } model) return;
+        _askingForPassword = true;
+        try { await new PasswordWindow(model).ShowDialog(this); }
+        finally { _askingForPassword = false; }
+    }
 
     private async void OnAdjust(object? sender, RoutedEventArgs e)
     {

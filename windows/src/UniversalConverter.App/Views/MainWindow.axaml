@@ -80,6 +80,15 @@
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <!-- A PDF with a password asks for it. One that was opened offers a copy without the password. -->
+                    <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding NeedsPassword}">
+                      <TextBlock Text="🔒" VerticalAlignment="Center" />
+                      <Button Content="Enter password…" Click="OnEnterPassword" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsUnlocked}">
+                      <TextBlock Text="🔓 Opened. The password is not needed for this conversion." Classes="caption" VerticalAlignment="Center" />
+                      <Button Content="Save copy without password" Click="OnSaveUnlocked" />
+                    </StackPanel>
                     <Button Content="Open Tools to install it" IsVisible="{Binding HasToolHint}" Click="OnOpenTools" HorizontalAlignment="Left" />
 
                     <!-- Progress. -->

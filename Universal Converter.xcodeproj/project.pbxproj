@@ -13,6 +13,7 @@
 		1360CC6777BAE5AAB0C24206 /* MergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F63BA2CEE72F8A7EAB1E6A9 /* MergeTests.swift */; };
 		13704461379A31BB06BADD57 /* GUIDE.md in Resources */ = {isa = PBXBuildFile; fileRef = 4086005D43C478CC9421966D /* GUIDE.md */; };
 		18F442A29CB15D82B34A0D81 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A98FA29B4BF8FFF13A48530B /* SettingsView.swift */; };
+		22EC93D784A7A62DD759D9C9 /* PDFPasswordSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00EC91191233567C704FDAE1 /* PDFPasswordSheet.swift */; };
 		246D46B76C4BB2668537066D /* ConversionMatrixTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C36EF869FD7752307769F16 /* ConversionMatrixTests.swift */; };
 		268DE8C2C21F45107124140E /* CodeModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D736167998A76EFE1CCFB386 /* CodeModelsTests.swift */; };
 		2ACF7240FEEFD5606BF5A3F8 /* Snapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCB43B0A1AE4F97E47977BD4 /* Snapshot.swift */; };
@@ -29,10 +30,12 @@
 		649772F6039AF314DE7CFF87 /* FileThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8ED4E5464F892E47804CBFC /* FileThumbnail.swift */; };
 		6C1482FE5A47B6F394F65C03 /* StandardFormatsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB123521314F560CA2C5454B /* StandardFormatsTests.swift */; };
 		793C6CCEA93D1C6900FD70E6 /* MergeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11C966C830D77F4FDF2F4F92 /* MergeSession.swift */; };
+		795CF710F4D74D2A1A2AC54A /* PDFUnlockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 068A6789E169C625DCE6556B /* PDFUnlockTests.swift */; };
 		7EAA0CA7E2B7D41ED2A152C6 /* ProcessRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F52FFD9E653236EAD20A3634 /* ProcessRunnerTests.swift */; };
 		8F3EE1E06DA38F3FA8F194C5 /* CodeValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81893C1047F574088AD2DFA /* CodeValidationTests.swift */; };
 		9A07CEA0120B52993AA7311E /* PageOutputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF5EE46535465B7296713014 /* PageOutputTests.swift */; };
 		9EF5A8D5CF29CF97401FCF97 /* ToolingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0C1D2156C03E743D20FA18 /* ToolingTests.swift */; };
+		A2F65BECAB4BE1B229D33D06 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = FD5F315D81C6CF8FDF485A96 /* PrivacyInfo.xcprivacy */; };
 		A65E94319DD805C4F984A3A0 /* PreflightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 261B3000F09E5AAA88DF5767 /* PreflightTests.swift */; };
 		A7FD8B0B48C3CAA075C75875 /* RoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2CEE070986EFB317D28155 /* RoutingTests.swift */; };
 		ACACFC66F1F46AB6075D1C18 /* CompressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65560E539EC65EF879E8F914 /* CompressionTests.swift */; };
@@ -50,6 +53,8 @@
 
 /* Begin PBXFileReference section */
 		002B99A15B2275C6B5272462 /* TestPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestPDF.swift; sourceTree = "<group>"; };
+		00EC91191233567C704FDAE1 /* PDFPasswordSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFPasswordSheet.swift; sourceTree = "<group>"; };
+		068A6789E169C625DCE6556B /* PDFUnlockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFUnlockTests.swift; sourceTree = "<group>"; };
 		11C966C830D77F4FDF2F4F92 /* MergeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergeSession.swift; sourceTree = "<group>"; };
 		1C1FA398DC6F8FC88D44862F /* UniversalConverterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = UniversalConverterTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		261B3000F09E5AAA88DF5767 /* PreflightTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreflightTests.swift; sourceTree = "<group>"; };
@@ -57,11 +62,11 @@
 		4086005D43C478CC9421966D /* GUIDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = GUIDE.md; sourceTree = "<group>"; };
 		4A0C1D2156C03E743D20FA18 /* ToolingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolingTests.swift; sourceTree = "<group>"; };
 		4FB751AC3C9168CED63EDED6 /* GlassStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassStyle.swift; sourceTree = "<group>"; };
+		558B3928A5EAE998EE1A9C45 /* UniversalConverter */ = {isa = PBXFileReference; lastKnownFileType = folder; name = UniversalConverter; path = .; sourceTree = SOURCE_ROOT; };
 		5C36EF869FD7752307769F16 /* ConversionMatrixTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversionMatrixTests.swift; sourceTree = "<group>"; };
 		651FEE5C52E1124BD62C9B39 /* RobustnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RobustnessTests.swift; sourceTree = "<group>"; };
 		65560E539EC65EF879E8F914 /* CompressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompressionTests.swift; sourceTree = "<group>"; };
 		6E2CEE070986EFB317D28155 /* RoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutingTests.swift; sourceTree = "<group>"; };
-		558B3928A5EAE998EE1A9C45 /* UniversalConverter */ = {isa = PBXFileReference; lastKnownFileType = folder; name = UniversalConverter; path = .; sourceTree = SOURCE_ROOT; };
 		88DAA7930FC48B4C9B63ADF7 /* FileConverterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileConverterApp.swift; sourceTree = "<group>"; };
 		8A9664ABCBD2D7D34FE4AA88 /* MergeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergeSheet.swift; sourceTree = "<group>"; };
 		8CF75D12B4CB163F646F83EA /* QueueRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueRow.swift; sourceTree = "<group>"; };
@@ -89,6 +94,7 @@
 		F78119D234497F11F91B880D /* RouteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteTests.swift; sourceTree = "<group>"; };
 		F8783C5211CD505977A38C53 /* SampleFilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleFilesTests.swift; sourceTree = "<group>"; };
 		FB123521314F560CA2C5454B /* StandardFormatsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandardFormatsTests.swift; sourceTree = "<group>"; };
+		FD5F315D81C6CF8FDF485A96 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -139,6 +145,7 @@
 				BF432AEEBDF7545BA91D0544 /* ImageEdits.swift */,
 				11C966C830D77F4FDF2F4F92 /* MergeSession.swift */,
 				8A9664ABCBD2D7D34FE4AA88 /* MergeSheet.swift */,
+				00EC91191233567C704FDAE1 /* PDFPasswordSheet.swift */,
 				8CF75D12B4CB163F646F83EA /* QueueRow.swift */,
 				A98FA29B4BF8FFF13A48530B /* SettingsView.swift */,
 				ED5784DAEA0F69A0C5D90902 /* ShortcutsIntents.swift */,
@@ -156,6 +163,7 @@
 				253436AC8D7EEB261E52A2F8 /* FileConverter */,
 				1D16FD0B421327682647B85B /* Icon */,
 				9ED19C48FFAD9C6C8CACB1A2 /* Packages */,
+				D3E87E54B4EF7FDC9B5977CB /* Resources */,
 				22EF27F847F213359C9E52E0 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -183,6 +191,7 @@
 				A97C4554845A81F98D8B25AD /* InstallTests.swift */,
 				8F63BA2CEE72F8A7EAB1E6A9 /* MergeTests.swift */,
 				CF5EE46535465B7296713014 /* PageOutputTests.swift */,
+				068A6789E169C625DCE6556B /* PDFUnlockTests.swift */,
 				261B3000F09E5AAA88DF5767 /* PreflightTests.swift */,
 				F52FFD9E653236EAD20A3634 /* ProcessRunnerTests.swift */,
 				908486874F3B5705585F0032 /* RARTests.swift */,
@@ -197,6 +206,14 @@
 			);
 			name = ConverterCoreTests;
 			path = Tests/ConverterCoreTests;
+			sourceTree = "<group>";
+		};
+		D3E87E54B4EF7FDC9B5977CB /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				FD5F315D81C6CF8FDF485A96 /* PrivacyInfo.xcprivacy */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -282,6 +299,7 @@
 			files = (
 				57C692327EC235D1A01A4C66 /* AppIcon.icon in Resources */,
 				13704461379A31BB06BADD57 /* GUIDE.md in Resources */,
+				A2F65BECAB4BE1B229D33D06 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -303,6 +321,7 @@
 				2CF5EA992CACA4B994C4775C /* ImageTests.swift in Sources */,
 				5D9B2410C23845BAC4CFB947 /* InstallTests.swift in Sources */,
 				1360CC6777BAE5AAB0C24206 /* MergeTests.swift in Sources */,
+				795CF710F4D74D2A1A2AC54A /* PDFUnlockTests.swift in Sources */,
 				9A07CEA0120B52993AA7311E /* PageOutputTests.swift in Sources */,
 				A65E94319DD805C4F984A3A0 /* PreflightTests.swift in Sources */,
 				7EAA0CA7E2B7D41ED2A152C6 /* ProcessRunnerTests.swift in Sources */,
@@ -330,6 +349,7 @@
 				F402D622A8B8393A2ECDE5F8 /* ImageEdits.swift in Sources */,
 				793C6CCEA93D1C6900FD70E6 /* MergeSession.swift in Sources */,
 				BBFD1D9E49069AE51D784AD9 /* MergeSheet.swift in Sources */,
+				22EC93D784A7A62DD759D9C9 /* PDFPasswordSheet.swift in Sources */,
 				64188600B97D80502F86454D /* QueueRow.swift in Sources */,
 				18F442A29CB15D82B34A0D81 /* SettingsView.swift in Sources */,
 				4A7BF06549BFF7D686581F20 /* ShortcutsIntents.swift in Sources */,
@@ -352,7 +372,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = local.universalconverter.app;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.cosmion.converter;
 				PRODUCT_NAME = "Universal Converter";
 				SDKROOT = macosx;
 			};
@@ -369,7 +389,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = local.universalconverter.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.cosmion.converter.tests;
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -410,7 +430,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -450,7 +470,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = local.universalconverter.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.cosmion.converter.tests;
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -467,7 +487,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = local.universalconverter.app;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.cosmion.converter;
 				PRODUCT_NAME = "Universal Converter";
 				SDKROOT = macosx;
 			};
@@ -509,7 +529,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;

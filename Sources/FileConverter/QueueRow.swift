@@ -40,6 +40,30 @@ struct QueueRow: View {
             }
             .layoutPriority(1)
         }
+        // A PDF with a password asks for it. One that was opened offers a copy without the password.
+        if item.lock == .needsPassword && !item.isBusy {
+            HStack(spacing: 8) {
+                Image(systemName: "lock.fill").foregroundStyle(.orange)
+                Text("Password needed")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Button("Enter Password…") { model.askForPassword() }
+                    .controlSize(.small)
+            }
+            .padding(.leading, 58)
+        } else if item.isUnlocked && !item.isBusy {
+            HStack(spacing: 8) {
+                Image(systemName: "lock.open.fill").foregroundStyle(.green)
+                Text("Opened. The password is not needed for this conversion.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Button("Save Copy Without Password") { model.saveUnlockedCopy(item.id) }
+                    .controlSize(.small)
+            }
+            .padding(.leading, 58)
+        }
         // A PDF being made smaller gets its compression choice on a line of its own, under the file.
         if item.isCompressTarget && !item.isBusy {
             CompressionControl(item: item)

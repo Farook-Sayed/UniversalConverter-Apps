@@ -32,6 +32,27 @@ enum SnapshotRunner {
         try? await Task.sleep(nanoseconds: 400_000_000)
         save("empty\(suffix)", in: output, matching: { $0.title == "Universal Converter" })
 
+        // Password-protected PDFs: the list, then the password window.
+        if let locked = env["FC_SNAPSHOT_PROTECTED"] {
+            let folder = URL(fileURLWithPath: locked, isDirectory: true)
+            let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
+            model.add(files.filter { $0.pathExtension == "pdf" }.sorted { $0.path < $1.path })
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            save("locked-queue\(suffix)", in: output, matching: { $0.title == "Universal Converter" })
+            let window = NSWindow(contentViewController: NSHostingController(
+                rootView: PDFPasswordSheet().environment(model)))
+            window.title = "Password"
+            window.isReleasedWhenClosed = false
+            window.makeKeyAndOrderFront(nil)
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            save("locked-password\(suffix)", in: output, matching: { $0.title == "Password" })
+            window.close()
+            await model.unlockPDFs(password: "shared-pw")
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            save("locked-after\(suffix)", in: output, matching: { $0.title == "Universal Converter" })
+            model.remove(Set(model.items.map(\.id)))
+        }
+
         if let samples = env["FC_SNAPSHOT_SAMPLES"] {
             model.loadDemo(folder: URL(fileURLWithPath: samples, isDirectory: true))
             try? await Task.sleep(nanoseconds: 2_500_000_000)

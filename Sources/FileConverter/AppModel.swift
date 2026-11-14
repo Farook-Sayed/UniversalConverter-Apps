@@ -93,9 +93,27 @@ final class AppModel {
         case cancelled
     }
 
+    /// Whether a PDF has a password. A locked PDF cannot be converted until its password is entered.
+    enum PDFLock: Equatable {
+        case none
+        /// Being opened to see whether it has a password.
+        case checking
+        case needsPassword
+        /// Opened. This is the copy without protection that conversions read.
+        case unlocked(URL)
+    }
+
     struct Item: Identifiable {
         let id = UUID()
         let file: DetectedFile
+        var lock: PDFLock = .none
+
+        /// The file conversions read: the unlocked copy of a PDF that had a password, or the file itself.
+        var effectiveFile: DetectedFile {
+            guard case .unlocked(let copy) = lock else { return file }
+            return DetectedFile(url: copy, category: file.category, formatID: file.formatID, mimeType: file.mimeType,
+                                method: file.method, extensionMismatch: file.extensionMismatch)
+        }
         var targets: [Route]
         var selectedTargetID: String?
         var findings: [Finding] = []
@@ -149,6 +167,7 @@ final class AppModel {
 
         var selectedTarget: Route? { targets.first { $0.id == selectedTargetID } }
         var isBlocked: Bool { findings.contains { $0.severity == .blocking } }
+        var isUnlocked: Bool { if case .unlocked = lock { return true } else { return false } }
         var isBusy: Bool { phase == .converting || phase == .queued }
         var directTargets: [Route] { targets.filter { !$0.isMultiStep } }
         var chainedTargets: [Route] { targets.filter(\.isMultiStep) }
@@ -161,6 +180,12 @@ final class AppModel {
     private(set) var installSteps: [String: String] = [:]
     /// A short message about files that could not be added. Shown above the list until dismissed.
     private(set) var notice: String?
+    /// Passwords typed during this session, tried on every PDF that is added. They are kept in memory only.
+    private var typedPasswords: [String] = []
+    /// True while the password window is open.
+    var isAskingForPassword = false
+    /// A message in the password window, such as "That password opened 1 of 3 files."
+    private(set) var passwordMessage: String?
     /// The result of the last install. Shown above the list until dismissed.
     private(set) var toolNotice: String?
     /// The code models that are downloaded, and whether Ollama itself is installed.
@@ -230,7 +255,9 @@ final class AppModel {
                 let targets = FormatCatalog.targets(for: detected, available: usable)
                 var item = Item(file: detected, targets: targets, selectedTargetID: targets.first?.id)
                 item.size = Preflight.fileSize(url)
+                if detected.formatID == "pdf" { item.lock = .checking }
                 items.append(item)
+                if item.lock == .checking { openPDF(item.id) }
             } catch {
                 problems.append(url.lastPathComponent)
             }
@@ -248,6 +275,7 @@ final class AppModel {
 
     func remove(_ ids: Set<UUID>) {
         for id in ids { tasks[id]?.cancel() }
+        for item in items where ids.contains(item.id) { discardCopy(of: item) }
         waiting.removeAll { ids.contains($0) }
         items.removeAll { ids.contains($0.id) }
         // A removed file that was converting frees its place, so the next waiting file can start.
@@ -260,6 +288,7 @@ final class AppModel {
 
     /// Removes files that are finished, failed or cancelled. Files still waiting or converting stay.
     func clearFinished() {
+        for item in items where !item.isBusy && item.phase != .ready { discardCopy(of: item) }
         items.removeAll { !$0.isBusy && $0.phase != .ready }
     }
 
@@ -281,12 +310,19 @@ final class AppModel {
         let python = Converter.fontPython(tools: ToolLocator())
         let locator = ToolLocator()
         for index in items.indices where id == nil || items[index].id == id {
-            let file = items[index].file
+            let file = items[index].effectiveFile
             var findings: [Finding] = []
-            if let target = items[index].selectedTarget {
-                findings = Preflight.findings(for: file, target: target,
-                                              outputFolder: outputDirectory(for: file.url),
-                                              tools: locator, fontPython: python)
+            switch items[index].lock {
+            case .checking:
+                findings.append(Finding(severity: .blocking, message: "Checking whether this PDF has a password…"))
+            case .needsPassword:
+                findings.append(Finding(severity: .blocking, message: "This PDF has a password. Enter it to open the file."))
+            default:
+                if let target = items[index].selectedTarget {
+                    findings = Preflight.findings(for: file, target: target,
+                                                  outputFolder: outputDirectory(for: items[index].file.url),
+                                                  tools: locator, fontPython: python)
+                }
             }
             // Formats that would appear if the optional tools were installed.
             let everything = allTargetCount(for: file)
@@ -349,10 +385,10 @@ final class AppModel {
         guard let index = items.firstIndex(where: { $0.id == id }),
               items[index].phase == .queued,
               let target = items[index].selectedTarget else { return }
-        let file = items[index].file
+        let file = items[index].effectiveFile
         items[index].phase = .converting
         let request = ConversionRequest(input: file, route: target,
-                                        outputDirectory: outputDirectory(for: file.url),
+                                        outputDirectory: outputDirectory(for: items[index].file.url),
                                         pdfCompression: items[index].compressionValue ?? .medium,
                                         imageAdjustments: items[index].imageEdits.adjustments ?? .unchanged)
         let converter = Converter(ollama: OllamaClient(model: AppSettings.ollamaModel),
@@ -377,17 +413,106 @@ final class AppModel {
         }
     }
 
+    // MARK: PDF passwords
+
+    var lockedCount: Int { items.filter { $0.lock == .needsPassword }.count }
+
+    /// Opens a PDF that was just added. One that only has restrictions opens at once. A password typed earlier is tried
+    /// first. Otherwise the password window asks. The work runs off the main thread, because a large PDF takes a while.
+    private func openPDF(_ id: UUID) {
+        guard let url = items.first(where: { $0.id == id })?.file.url else { return }
+        let passwords = typedPasswords
+        Task { [weak self] in
+            let opened = await Task.detached { PDFUnlocker.open(url, trying: passwords) }.value
+            self?.finishOpening(id, opened)
+        }
+    }
+
+    private func finishOpening(_ id: UUID, _ opened: PDFUnlocker.Opened) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else {
+            if case .unlocked(let copy, _) = opened { try? FileManager.default.removeItem(at: copy.deletingLastPathComponent()) }
+            return
+        }
+        switch opened {
+        case .notProtected: items[index].lock = .none
+        case .unlocked(let copy, _): items[index].lock = .unlocked(copy)
+        case .needsPassword:
+            items[index].lock = .needsPassword
+            isAskingForPassword = true
+        }
+        refreshFindings(only: id)
+    }
+
+    /// Tries one password on every PDF that is waiting for one. Files it does not open stay locked.
+    func unlockPDFs(password: String) async {
+        let waiting = items.filter { $0.lock == .needsPassword }.map { ($0.id, $0.file.url) }
+        guard !waiting.isEmpty else { isAskingForPassword = false; return }
+        let results = await Task.detached {
+            waiting.map { ($0.0, PDFUnlocker.open($0.1, password: password)) }
+        }.value
+        var opened = 0
+        for (id, result) in results {
+            guard let result else { continue }
+            finishOpening(id, result)
+            opened += 1
+        }
+        if opened > 0 && !typedPasswords.contains(password) { typedPasswords.append(password) }
+        let remaining = lockedCount
+        if remaining == 0 {
+            passwordMessage = nil
+            isAskingForPassword = false
+        } else if opened == 0 {
+            passwordMessage = "That password does not open \(remaining == 1 ? "this PDF" : "these PDFs")."
+        } else {
+            passwordMessage = "That password opened \(opened) of \(waiting.count). Enter the password for the other \(remaining)."
+        }
+    }
+
+    func askForPassword() {
+        passwordMessage = nil
+        isAskingForPassword = true
+    }
+
+    func stopAskingForPassword() {
+        passwordMessage = nil
+        isAskingForPassword = false
+    }
+
+    /// Saves a copy of an opened PDF without its password, next to the original or in the output folder.
+    func saveUnlockedCopy(_ id: UUID) {
+        guard let item = items.first(where: { $0.id == id }), case .unlocked(let copy) = item.lock else { return }
+        let folder = outputDirectory(for: item.file.url)
+        let stem = item.file.url.deletingPathExtension().lastPathComponent + " (unlocked)"
+        let destination = OutputNaming.uniqueURL(stem: stem, ext: "pdf", in: folder)
+        do {
+            try FileManager.default.copyItem(at: copy, to: destination)
+            addToolNotice("Saved \(destination.lastPathComponent) without its password.")
+            reveal(destination)
+        } catch {
+            notice = "Could not save the unlocked copy: \(error.localizedDescription)"
+        }
+    }
+
+    private func discardCopy(of item: Item) {
+        guard case .unlocked(let copy) = item.lock else { return }
+        try? FileManager.default.removeItem(at: copy.deletingLastPathComponent())
+    }
+
     // MARK: Merge
 
     /// What the files in the queue could be merged into. Empty until two files of the same kind are in the queue.
-    var mergeGroups: [MergeGroup] { MergePlanner.groups(for: items.map(\.file)) }
+    var mergeGroups: [MergeGroup] {
+        MergePlanner.groups(for: items.filter { $0.lock == .none || $0.isUnlocked }.map(\.effectiveFile))
+    }
     var canMerge: Bool { !mergeGroups.isEmpty }
 
     /// A merge window for the files in the queue, or nil when nothing can be merged.
     func makeMergeSession() -> MergeSession? {
         let groups = mergeGroups
         guard let first = groups.first?.files.first else { return nil }
-        return MergeSession(groups: groups, outputFolder: outputDirectory(for: first.url))
+        // An unlocked copy lives in a temporary folder, so the result goes next to the original instead.
+        let original = items.first { $0.effectiveFile.url == first.url }?.file.url ?? first.url
+        return MergeSession(groups: groups, outputFolder: outputDirectory(for: original))
     }
 
     /// Converts every file that has a format chosen and is not already done.

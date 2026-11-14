@@ -13,7 +13,8 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Version>1.0.0</Version>
     <Product>Universal Converter</Product>
-    <Company>Universal Converter</Company>
+    <Company>Farook Sayed</Company>
+    <Copyright>Copyright © 2026 Farook Sayed. MIT License.</Copyright>
     <NoWarn>$(NoWarn);CA1416;NU1701;AVLN3001</NoWarn>
   </PropertyGroup>
 

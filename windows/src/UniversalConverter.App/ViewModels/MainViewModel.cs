@@ -18,7 +18,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _outputFolder = AppSettings.Current.OutputFolder;
 
     /// <summary>What the files in the queue could be merged into. Empty until two files of the same kind are in the queue.</summary>
-    public IReadOnlyList<MergeGroup> MergeGroups => MergePlanner.GroupsFor(Items.Select(i => i.File));
+    public IReadOnlyList<MergeGroup> MergeGroups => MergePlanner.GroupsFor(Items.Where(i => i.IsOpenForMerge).Select(i => i.EffectiveFile));
     public bool CanMerge => MergeGroups.Count > 0;
 
     /// <summary>A merge window for the files in the queue, or null when nothing can be merged.</summary>
@@ -44,6 +44,56 @@ public partial class MainViewModel : ObservableObject
             if (failed > 0) parts.Add($"{failed} failed");
             return string.Join(" · ", parts);
         }
+    }
+
+    /// <summary>Passwords typed during this session, tried on every PDF that is added. They are kept in memory only.</summary>
+    private readonly List<string> _typedPasswords = [];
+
+    /// <summary>Raised when a PDF needs a password, so the window can ask for it.</summary>
+    public event Action? PasswordNeeded;
+
+    public int LockedCount => Items.Count(i => i.NeedsPassword);
+
+    /// <summary>Opens a PDF that was just added, off the UI thread, because a large PDF takes a while.</summary>
+    private async Task OpenPdfAsync(ItemViewModel item)
+    {
+        var passwords = _typedPasswords.ToList();
+        var opened = await Task.Run(() => PdfUnlocker.Open(item.File.Path, passwords));
+        if (!Items.Contains(item))
+        {
+            if (opened is PdfOpened.Unlocked gone) try { Directory.Delete(Path.GetDirectoryName(gone.Copy)!, true); } catch { }
+            return;
+        }
+        item.SetOpened(opened);
+        if (opened is PdfOpened.NeedsPassword) PasswordNeeded?.Invoke();
+    }
+
+    /// <summary>Tries one password on every PDF that is waiting for one. Files it does not open stay locked.</summary>
+    public async Task<(int Opened, int Waiting)> UnlockPdfsAsync(string password)
+    {
+        var waiting = Items.Where(i => i.NeedsPassword).ToList();
+        var results = await Task.Run(() => waiting.Select(i => (Item: i, Result: PdfUnlocker.Open(i.File.Path, password))).ToList());
+        int opened = 0;
+        foreach (var (item, result) in results)
+        {
+            if (result is null) continue;
+            if (!Items.Contains(item)) { try { Directory.Delete(Path.GetDirectoryName(result.Copy)!, true); } catch { } continue; }
+            item.SetOpened(result);
+            opened++;
+        }
+        if (opened > 0 && !_typedPasswords.Contains(password)) _typedPasswords.Add(password);
+        return (opened, waiting.Count);
+    }
+
+    /// <summary>Saves a copy of an opened PDF without its password, in the folder for results.</summary>
+    public string? SaveUnlockedCopy(ItemViewModel item)
+    {
+        if (item.UnlockedPath is not { } copy) return null;
+        Directory.CreateDirectory(OutputFolder);
+        var stem = Path.GetFileNameWithoutExtension(item.File.Path) + " (unlocked)";
+        var destination = OutputNaming.UniquePath(stem, "pdf", OutputFolder);
+        File.Copy(copy, destination);
+        return destination;
     }
 
     public MainViewModel()
@@ -86,7 +136,9 @@ public partial class MainViewModel : ObservableObject
             DetectedFile? detected;
             try { detected = await Task.Run(() => _detector.Detect(path)); }
             catch { continue; }
-            Items.Add(new ItemViewModel(this, detected));
+            var item = new ItemViewModel(this, detected);
+            Items.Add(item);
+            if (item.Lock == PdfLock.Checking) _ = OpenPdfAsync(item);
         }
     }
 
@@ -110,12 +162,13 @@ public partial class MainViewModel : ObservableObject
     {
         item.Cancel();
         Items.Remove(item);
+        item.DiscardCopy();
     }
 
     [RelayCommand]
     private void ClearFinished()
     {
-        foreach (var item in Items.Where(i => i.IsFinished).ToList()) Items.Remove(item);
+        foreach (var item in Items.Where(i => i.IsFinished).ToList()) { Items.Remove(item); item.DiscardCopy(); }
     }
 
     public void CancelAll()

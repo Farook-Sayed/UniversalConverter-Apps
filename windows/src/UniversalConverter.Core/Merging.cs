@@ -286,7 +286,7 @@ public static class PdfMerger
                     try { source = PdfDocument.Open(file.Path); open.Add(source); }
                     catch (UglyToad.PdfPig.Exceptions.PdfDocumentEncryptedException)
                     {
-                        throw ConversionException.Unsupported($"{name} is password-protected. Remove the password first, then merge it.");
+                        throw ConversionException.Unsupported($"{name} is password-protected. Enter its password in the file list first, then merge it.");
                     }
                     catch (Exception ex) when (ex is not ConversionException)
                     {

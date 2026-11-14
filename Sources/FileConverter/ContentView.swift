@@ -26,11 +26,17 @@ struct ContentView: View {
             .navigationSubtitle(subtitle)
             .toolbar { toolbar }
             .sheet(item: $merge) { session in MergeSheet(session: session) }
+            .sheet(isPresented: passwordBinding) { PDFPasswordSheet() }
             .onReceive(NotificationCenter.default.publisher(for: .fcMergeFiles)) { _ in merge = model.makeMergeSession() }
             .animation(.snappy, value: model.items.map(\.id))
             .onReceive(NotificationCenter.default.publisher(for: .fcOpenSettings)) { _ in
                 openSettings()
             }
+    }
+
+    private var passwordBinding: Binding<Bool> {
+        Binding(get: { model.isAskingForPassword && model.lockedCount > 0 },
+                set: { if !$0 { model.stopAskingForPassword() } })
     }
 
     @ViewBuilder
@@ -144,6 +150,12 @@ struct ContentView: View {
                 .disabled(item.selectedTarget == nil || item.isBlocked || item.needsCustomSize)
         }
         Button("Show Original in Finder") { model.reveal(item.file.url) }
+        if item.lock == .needsPassword {
+            Button("Enter Password…") { model.askForPassword() }
+        }
+        if item.isUnlocked {
+            Button("Save Copy Without Password") { model.saveUnlockedCopy(item.id) }
+        }
         Divider()
         Button("Remove from List", role: .destructive) { model.remove(item.id) }
             .disabled(item.isBusy)

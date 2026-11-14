@@ -7,6 +7,9 @@ namespace UniversalConverter.App.ViewModels;
 
 public enum ItemPhase { Ready, Converting, Finished, Failed }
 
+/// <summary>Whether a PDF has a password. A locked PDF cannot be converted until its password is entered.</summary>
+public enum PdfLock { None, Checking, NeedsPassword, Unlocked }
+
 public sealed record FindingRow(string Message, IBrush Brush);
 
 /// <summary>One file in the queue: what it is, what it can become, and how its conversion is going.</summary>
@@ -34,6 +37,13 @@ public partial class ItemViewModel : ObservableObject
     [ObservableProperty] private int _pdfPresetIndex = 2;
     [ObservableProperty] private string _pdfCustomSize = "";
     [ObservableProperty] private bool _settingsChangedSinceConverting;
+    [ObservableProperty] private PdfLock _lock = PdfLock.None;
+
+    /// <summary>The copy of a PDF without its password. Conversions read this file instead of the original.</summary>
+    public string? UnlockedPath { get; private set; }
+
+    /// <summary>The file conversions read: the unlocked copy of a PDF that had a password, or the file itself.</summary>
+    public DetectedFile EffectiveFile => UnlockedPath is null ? File : File with { Path = UnlockedPath };
 
     public ItemViewModel(MainViewModel owner, DetectedFile file)
     {
@@ -41,6 +51,7 @@ public partial class ItemViewModel : ObservableObject
         File = file;
         Routes = FormatCatalog.TargetsFor(file);
         _selectedRoute = Routes.FirstOrDefault();
+        if (file.FormatId == "pdf") _lock = PdfLock.Checking;
         Edits.Changed += () => { SettingsChangedSinceConverting = Phase is ItemPhase.Finished; Refresh(); };
         Refresh();
     }
@@ -63,6 +74,29 @@ public partial class ItemViewModel : ObservableObject
         MediaCategory.Font => "🔤", MediaCategory.Postscript => "🖨", MediaCategory.Model3D => "🧊", MediaCategory.Ebook => "📚",
         _ => "📁",
     };
+
+    public bool NeedsPassword => Lock == PdfLock.NeedsPassword;
+    public bool IsUnlocked => Lock == PdfLock.Unlocked;
+    public bool IsOpenForMerge => Lock is PdfLock.None or PdfLock.Unlocked;
+
+    /// <summary>Records the result of opening a PDF, and keeps or drops its unlocked copy.</summary>
+    public void SetOpened(PdfOpened opened)
+    {
+        DiscardCopy();
+        switch (opened)
+        {
+            case PdfOpened.Unlocked unlocked: UnlockedPath = unlocked.Copy; Lock = PdfLock.Unlocked; break;
+            case PdfOpened.NeedsPassword: Lock = PdfLock.NeedsPassword; break;
+            default: Lock = PdfLock.None; break;
+        }
+    }
+
+    public void DiscardCopy()
+    {
+        if (UnlockedPath is { } copy)
+            try { Directory.Delete(Path.GetDirectoryName(copy)!, true); } catch { /* the temporary folder is cleaned up later */ }
+        UnlockedPath = null;
+    }
 
     public bool IsReady => Phase == ItemPhase.Ready;
     public bool IsConverting => Phase == ItemPhase.Converting;
@@ -104,6 +138,7 @@ public partial class ItemViewModel : ObservableObject
     partial void OnPdfPresetIndexChanged(int value) { SettingsChangedSinceConverting = Phase is ItemPhase.Finished; Refresh(); }
     partial void OnPdfCustomSizeChanged(string value) => Refresh();
     partial void OnPhaseChanged(ItemPhase value) => Refresh();
+    partial void OnLockChanged(PdfLock value) => Refresh();
     partial void OnFractionChanged(double? value)
     {
         OnPropertyChanged(nameof(IsIndeterminate)); OnPropertyChanged(nameof(Percent));
@@ -114,8 +149,12 @@ public partial class ItemViewModel : ObservableObject
     public void Refresh()
     {
         Findings.Clear();
-        if (SelectedRoute is { } route)
-            foreach (var finding in Preflight.FindingsFor(File, route, _owner.OutputFolder, _owner.Tools))
+        if (Lock == PdfLock.Checking)
+            Findings.Add(new FindingRow("Checking whether this PDF has a password…", FindingBrushes.Blocking));
+        else if (Lock == PdfLock.NeedsPassword)
+            Findings.Add(new FindingRow("This PDF has a password. Enter it to open the file.", FindingBrushes.Blocking));
+        else if (SelectedRoute is { } route)
+            foreach (var finding in Preflight.FindingsFor(EffectiveFile, route, _owner.OutputFolder, _owner.Tools))
                 Findings.Add(new FindingRow(finding.Message, FindingBrushes.For(finding.Severity)));
         else if (Routes.Count == 0)
             Findings.Add(new FindingRow("Universal Converter cannot convert this kind of file yet.", FindingBrushes.Blocking));
@@ -124,7 +163,7 @@ public partial class ItemViewModel : ObservableObject
             nameof(IsReady), nameof(IsConverting), nameof(IsFinished), nameof(IsFailed), nameof(IsBusy), nameof(IsPdfCompress),
             nameof(PdfCustom), nameof(PdfCustomInvalid), nameof(IsImageAdjustable), nameof(IsLossyImageTarget), nameof(AdjustSummary),
             nameof(AdjustNeedsAttention), nameof(HasBlockingFinding), nameof(CanConvert), nameof(CanCancel), nameof(ConvertLabel),
-            nameof(HasNotes), nameof(HasToolHint),
+            nameof(HasNotes), nameof(HasToolHint), nameof(NeedsPassword), nameof(IsUnlocked), nameof(IsOpenForMerge),
         }) OnPropertyChanged(name);
         _owner.NotifyQueueChanged();
     }
@@ -161,7 +200,7 @@ public partial class ItemViewModel : ObservableObject
             });
             var adjustments = IsImageAdjustable ? Edits.ToAdjustments(IsLossyImageTarget) : null;
             ProgressMessage = "Converting…";
-            var result = await converter.ConvertAsync(new ConversionRequest(File, route, outputFolder, pdf, adjustments), token);
+            var result = await converter.ConvertAsync(new ConversionRequest(EffectiveFile, route, outputFolder, pdf, adjustments), token);
             OutputPath = result.OutputPath;
             foreach (var note in result.Notes) Notes.Add(note);
             ValidationText = result.Validation?.Summary;
