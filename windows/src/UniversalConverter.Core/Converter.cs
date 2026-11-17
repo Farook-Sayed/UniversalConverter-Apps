@@ -547,7 +547,7 @@ public sealed partial class Converter
         {
             var message = ex.Message;
             if (message.Contains("password", StringComparison.OrdinalIgnoreCase) || ex is System.Security.Cryptography.CryptographicException)
-                throw ConversionException.Unsupported("This archive is password-protected. Universal Converter cannot open password-protected archives yet.");
+                throw ConversionException.Unsupported("This archive is password-protected. File Converter cannot open password-protected archives yet.");
             throw ConversionException.Unsupported($"This archive could not be opened. {FirstLine(message)}");
         }
         Archives.DropLinks(extracted, job.Notes, skippedLinks);

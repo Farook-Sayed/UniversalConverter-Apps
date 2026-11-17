@@ -15,10 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "84DDC1F7D82E53036AF38844"
-               BuildableName = "Universal Converter.app"
-               BlueprintName = "Universal Converter"
-               ReferencedContainer = "container:Universal Converter.xcodeproj">
+               BlueprintIdentifier = "6CD7EDD1DB2AFC8E4BBC4A78"
+               BuildableName = "File Converter.app"
+               BlueprintName = "File Converter"
+               ReferencedContainer = "container:File Converter.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -32,10 +32,10 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "84DDC1F7D82E53036AF38844"
-            BuildableName = "Universal Converter.app"
-            BlueprintName = "Universal Converter"
-            ReferencedContainer = "container:Universal Converter.xcodeproj">
+            BlueprintIdentifier = "6CD7EDD1DB2AFC8E4BBC4A78"
+            BuildableName = "File Converter.app"
+            BlueprintName = "File Converter"
+            ReferencedContainer = "container:File Converter.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -44,10 +44,10 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "2AAE95D3EFD6C0F7686E974B"
-               BuildableName = "UniversalConverterTests.xctest"
-               BlueprintName = "UniversalConverterTests"
-               ReferencedContainer = "container:Universal Converter.xcodeproj">
+               BlueprintIdentifier = "B6158C1926768AB26AA652B4"
+               BuildableName = "FileConverterTests.xctest"
+               BlueprintName = "FileConverterTests"
+               ReferencedContainer = "container:File Converter.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -68,10 +68,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "84DDC1F7D82E53036AF38844"
-            BuildableName = "Universal Converter.app"
-            BlueprintName = "Universal Converter"
-            ReferencedContainer = "container:Universal Converter.xcodeproj">
+            BlueprintIdentifier = "6CD7EDD1DB2AFC8E4BBC4A78"
+            BuildableName = "File Converter.app"
+            BlueprintName = "File Converter"
+            ReferencedContainer = "container:File Converter.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -87,10 +87,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "84DDC1F7D82E53036AF38844"
-            BuildableName = "Universal Converter.app"
-            BlueprintName = "Universal Converter"
-            ReferencedContainer = "container:Universal Converter.xcodeproj">
+            BlueprintIdentifier = "6CD7EDD1DB2AFC8E4BBC4A78"
+            BuildableName = "File Converter.app"
+            BlueprintName = "File Converter"
+            ReferencedContainer = "container:File Converter.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>

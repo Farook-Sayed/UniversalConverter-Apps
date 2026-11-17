@@ -1,13 +1,13 @@
 # Publishing and distribution
 
-Notes on how Universal Converter can be shared, what Apple and Microsoft require, and what has and has not been done.
+Notes on how File Converter can be shared, what Apple and Microsoft require, and what has and has not been done.
 This is practical guidance, not legal advice.
 
 ## macOS: share it outside the Mac App Store
 
 The app **cannot go on the Mac App Store as it is**, and it should be shared directly instead:
 
-- Mac App Store apps must be sandboxed, and **Guideline 2.4.5** (as I read it) does not let an app download or install other software to add features. Universal Converter's main idea is to run tools that Homebrew installs (FFmpeg, LibreOffice and others), which is exactly that. The app is therefore built **without** the App Sandbox (`ENABLE_APP_SANDBOX: NO` in `project.yml`).
+- Mac App Store apps must be sandboxed, and **Guideline 2.4.5** (as I read it) does not let an app download or install other software to add features. File Converter's main idea is to run tools that Homebrew installs (FFmpeg, LibreOffice and others), which is exactly that. The app is therefore built **without** the App Sandbox (`ENABLE_APP_SANDBOX: NO` in `project.yml`).
 - Direct download is fine for this. Apple only asks that a downloaded app is signed with a **Developer ID** certificate and **notarized**. Then it opens on any Mac without a Gatekeeper block. macOS still asks once, "Are you sure you want to open it?", for an app downloaded from the internet.
 
 **What you need**
@@ -19,7 +19,7 @@ The app **cannot go on the Mac App Store as it is**, and it should be shared dir
 ```bash
 DEVELOPER_ID="Developer ID Application: Your Name (TEAMID)" ./scripts/sign-and-notarize.sh
 ```
-This builds with the hardened runtime, sends the app to Apple, staples the result and checks it with `spctl`. The output is `build/Universal Converter.zip`. **The script has not been run yet**, because it needs a paid account. Run it once and fix anything it reports.
+This builds with the hardened runtime, sends the app to Apple, staples the result and checks it with `spctl`. The output is `build/File Converter.zip`. **The script has not been run yet**, because it needs a paid account. Run it once and fix anything it reports.
 
 **Already set in the project**
 | Setting | Value |
@@ -37,14 +37,14 @@ Changing the bundle identifier resets the app's saved settings, because they are
 
 ## Windows
 
-- Share `UniversalConverter.exe` from GitHub Releases or a website.
+- Share `FileConverter.exe` from GitHub Releases or a website.
 - The file is not signed with a publisher certificate, so Windows SmartScreen warns on first run ("More info → Run anyway"). A code-signing certificate removes the warning, but costs money each year and is not required.
 - Nothing like the Mac App Store rules applies to a download. If it is ever put in the Microsoft Store, that needs a separate review.
 
 ## Names, brands and screenshots
 
 - The app names the programs it works with (FFmpeg, LibreOffice, Pandoc, Calibre, Ollama, Homebrew, and the operating systems) only to say what it works with. See `THIRD_PARTY_NOTICES.md`: the names belong to their owners, and the app is not affiliated with, endorsed by or sponsored by any of them.
-- "Universal Converter" is a descriptive name, and several other products use similar ones. Before putting it on a store, search the store and the trademark register of the countries you sell in.
+- "File Converter" is a descriptive name, and several other products use similar ones. Before putting it on a store, search the store and the trademark register of the countries you sell in.
 - The icon is original artwork (`Icon/`), and does not copy another company's logo or style.
 - Screenshots in `docs/images` show only sample files made by `scripts/make-test-files.sh`. Keep it that way: do not show films, music or other people's photos in screenshots or demo videos.
 

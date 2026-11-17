@@ -160,7 +160,7 @@ public partial class ItemViewModel : ObservableObject
             foreach (var finding in Preflight.FindingsFor(EffectiveFile, route, _owner.OutputFolder, _owner.Tools))
                 Findings.Add(new FindingRow(finding.Message, FindingBrushes.For(finding.Severity)));
         else if (Routes.Count == 0)
-            Findings.Add(new FindingRow("Universal Converter cannot convert this kind of file yet.", FindingBrushes.Blocking));
+            Findings.Add(new FindingRow("File Converter cannot convert this kind of file yet.", FindingBrushes.Blocking));
         foreach (var name in new[]
         {
             nameof(IsReady), nameof(IsConverting), nameof(IsFinished), nameof(IsFailed), nameof(IsBusy), nameof(IsPdfCompress),

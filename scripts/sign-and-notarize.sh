@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds Universal Converter with a Developer ID signature, sends it to Apple for notarization, and staples the ticket,
+# Builds File Converter with a Developer ID signature, sends it to Apple for notarization, and staples the ticket,
 # so the app opens on any Mac without a Gatekeeper warning. This is the way to share the app outside the Mac App Store.
 #
 # You need (once):
@@ -12,7 +12,7 @@
 # Usage:
 #   DEVELOPER_ID="Developer ID Application: Your Name (TEAMID)" ./scripts/sign-and-notarize.sh [notary-profile]
 #
-# The result is build/Universal Converter.zip. This script has not been run yet: it needs a paid Apple Developer account.
+# The result is build/File Converter.zip. This script has not been run yet: it needs a paid Apple Developer account.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -28,20 +28,20 @@ mkdir -p build
 # A build from make-app.sh is signed ad hoc, so it must not be reused here.
 rm -rf build/xcode
 echo "Building and signing with: $DEVELOPER_ID"
-xcodebuild -project "Universal Converter.xcodeproj" -scheme "Universal Converter" -configuration Release \
+xcodebuild -project "File Converter.xcodeproj" -scheme "File Converter" -configuration Release \
   -derivedDataPath build/xcode CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_IDENTITY="$DEVELOPER_ID" PROVISIONING_PROFILE_SPECIFIER="" \
   ENABLE_HARDENED_RUNTIME=YES OTHER_CODE_SIGN_FLAGS="--timestamp" build >build/xcodebuild.log 2>&1 \
   || { grep -E "error:" build/xcodebuild.log | tail -20; echo "The build failed. See build/xcodebuild.log"; exit 1; }
 
-APP="build/Universal Converter.app"
+APP="build/File Converter.app"
 rm -rf "$APP"
-cp -R "build/xcode/Build/Products/Release/Universal Converter.app" "$APP"
+cp -R "build/xcode/Build/Products/Release/File Converter.app" "$APP"
 
 # The signature must be valid, use the hardened runtime and carry a secure timestamp, or Apple rejects it.
 codesign --verify --deep --strict --verbose=2 "$APP"
 codesign -dv "$APP" 2>&1 | grep -q "flags=.*runtime" || { echo "The hardened runtime is not on"; exit 1; }
 
-ZIP="build/Universal Converter.zip"
+ZIP="build/File Converter.zip"
 rm -f "$ZIP"
 ditto -c -k --keepParent "$APP" "$ZIP"
 echo "Sending to Apple for notarization. This usually takes a few minutes."

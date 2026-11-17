@@ -1,6 +1,6 @@
-# Universal Converter
+# File Converter
 
-Universal Converter converts files between formats on your own computer. Drop a file in, pick a format, and it does the rest. It reads what is *inside* a file to work out its type, so a file with the wrong name still converts.
+File Converter converts files between formats on your own computer. Drop a file in, pick a format, and it does the rest. It reads what is *inside* a file to work out its type, so a file with the wrong name still converts.
 
 It comes as two native apps from one codebase:
 
@@ -8,7 +8,7 @@ It comes as two native apps from one codebase:
 |---|---|---|
 | Needs | A Mac with Apple silicon, macOS 14 or later | Windows 10 or 11, 64-bit |
 | Built with | Swift and SwiftUI | C# (.NET 10) and Avalonia |
-| Install | Build it with `scripts/make-app.sh` (see below) | Download `UniversalConverter.exe`, one file, nothing else to install |
+| Install | Build it with `scripts/make-app.sh` (see below) | Download `FileConverter.exe`, one file, nothing else to install |
 | Code | This folder, the Swift packages and `Sources/` | [`windows/`](windows/README.md) |
 | Guide | [GUIDE.md](GUIDE.md) | [windows/README.md](windows/README.md) |
 
@@ -99,10 +99,10 @@ Installs use [Homebrew](https://brew.sh). If you do not have it, install it once
 git clone https://github.com/Farook-Sayed/UniversalConverter-Apps.git
 cd UniversalConverter-Apps
 ./scripts/make-app.sh
-open "build/Universal Converter.app"
+open "build/File Converter.app"
 ```
 
-`make-app.sh` generates the Xcode project from `project.yml` and builds it. The generated `Universal Converter.xcodeproj` is also checked in, so you can open it in Xcode directly.
+`make-app.sh` generates the Xcode project from `project.yml` and builds it. The generated `File Converter.xcodeproj` is also checked in, so you can open it in Xcode directly.
 
 The app is signed ad hoc, so it runs on the Mac that built it. To share a build, sign it with your own Developer ID and notarize it with `scripts/sign-and-notarize.sh`; see [DISTRIBUTION.md](DISTRIBUTION.md). The bundle identifier is `dev.cosmion.converter`. Change it in `project.yml` and `Resources/Info.plist` if you publish your own build.
 
@@ -138,10 +138,10 @@ The matrix converts each sample file to every format offered for it and checks e
 
 The Windows app is in [`windows/`](windows/README.md). It does the same job as the Mac app, and its guide covers everything in detail. In short:
 
-- **Get it:** download `UniversalConverter.exe` and run it. It is one file, about 85 MB, and needs nothing else installed. Windows 10 (1903 or later) and Windows 11, 64-bit.
+- **Get it:** download `FileConverter.exe` and run it. It is one file, about 85 MB, and needs nothing else installed. Windows 10 (1903 or later) and Windows 11, 64-bit.
 - **Works with nothing to install:** pictures, PDF pages, scanned text (with Windows' own recognition), archives (ZIP, 7z, RAR, tar, tar.gz), 3D models, picture adjustments and merging pictures and PDFs.
 - **Optional tools:** video, Office, Markdown, e-books, PDF compression, 7-Zip, fonts, code translation and code checks install from **Settings and tools → Tools** through winget, with a **Remove…** button for each one.
-- **Build it:** `cd windows && ./scripts/build-exe.sh` makes `dist/UniversalConverter.exe`. The .NET 10 SDK is needed; it builds on Windows, macOS and Linux.
+- **Build it:** `cd windows && ./scripts/build-exe.sh` makes `dist/FileConverter.exe`. The .NET 10 SDK is needed; it builds on Windows, macOS and Linux.
 - **Status:** built and tested on a Mac and checked by GitHub's Windows runner (tests, the `.exe` build, and a start-up check). **Not yet run on a real Windows PC** by its authors. The known limits are listed in [windows/README.md](windows/README.md).
 
 ## Repository layout
@@ -162,8 +162,8 @@ More: [GUIDE.md](GUIDE.md) (using the Mac app), [DESIGN.md](DESIGN.md) (design r
 ## Continuous integration
 
 - **macOS** (`ci.yml`): runs `swift test` on a Mac runner and builds the app. The conversion tools are not installed on the runner, so tests that need them skip.
-- **Windows** (`windows.yml`): runs the Windows tests, builds `UniversalConverter.exe`, and starts it once to check that it opens a window.
+- **Windows** (`windows.yml`): runs the Windows tests, builds `FileConverter.exe`, and starts it once to check that it opens a window.
 
 ## License
 
-[MIT](LICENSE). The tools the apps run are separate programs with their own licenses, and the Windows app contains libraries with theirs. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The names of the programs and systems the apps work with belong to their owners; Universal Converter is not affiliated with them.
+[MIT](LICENSE). The tools the apps run are separate programs with their own licenses, and the Windows app contains libraries with theirs. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The names of the programs and systems the apps work with belong to their owners; File Converter is not affiliated with them.

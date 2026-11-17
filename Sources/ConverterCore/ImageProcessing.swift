@@ -332,7 +332,7 @@ public enum ImageProcessing {
     /// Applies the adjustments in order (crop, size, background, style, flattening) and encodes the result.
     public static func render(from url: URL, targetID: String, adjustments: ImageAdjustments) throws -> RenderedImage {
         guard let type = type(for: targetID) else {
-            throw ConversionError.unsupported("Universal Converter cannot write \(targetID) pictures.")
+            throw ConversionError.unsupported("File Converter cannot write \(targetID) pictures.")
         }
         func failed(_ step: String) -> ConversionError {
             .unsupported("The picture could not be \(step). Try a different format.")

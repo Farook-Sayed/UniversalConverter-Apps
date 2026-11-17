@@ -1,4 +1,4 @@
-# Universal Converter — design log
+# File Converter — design log
 
 A running record of the product and engineering decisions behind the project: what it is for, what it does, and why. It documents the human direction of the work (scope, behaviour, trade-offs, naming and publishing), which is what the project's copyright rests on where code was written with an AI assistant. Keep adding to it.
 

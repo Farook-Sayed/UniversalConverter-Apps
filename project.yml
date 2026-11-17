@@ -1,6 +1,6 @@
-# XcodeGen spec. Run `xcodegen generate` to create "Universal Converter.xcodeproj".
+# XcodeGen spec. Run `xcodegen generate` to create "File Converter.xcodeproj".
 # The app is built by Xcode so that App Intents (Shortcuts and Siri) are registered.
-name: Universal Converter
+name: File Converter
 options:
   bundleIdPrefix: dev.cosmion
   deploymentTarget:
@@ -12,12 +12,14 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
-    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: N8ZUSKY27T
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "Apple Development"
     # Hardened runtime is required for Apple's notarization. The app only starts other programs and reads files the user
     # gave it, which it allows. It is not sandboxed, because it runs tools that Homebrew installs (see DISTRIBUTION.md).
     ENABLE_HARDENED_RUNTIME: YES
 targets:
-  Universal Converter:
+  File Converter:
     type: application
     platform: macOS
     sources:
@@ -30,13 +32,13 @@ targets:
         product: ConverterCore
     settings:
       base:
-        PRODUCT_NAME: Universal Converter
+        PRODUCT_NAME: File Converter
         PRODUCT_BUNDLE_IDENTIFIER: dev.cosmion.converter
         INFOPLIST_FILE: Resources/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_APP_SANDBOX: NO
-  UniversalConverterTests:
+  FileConverterTests:
     type: bundle.unit-test
     platform: macOS
     sources:
@@ -49,16 +51,16 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: dev.cosmion.converter.tests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
-  Universal Converter:
+  File Converter:
     build:
       targets:
-        Universal Converter: all
+        File Converter: all
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - UniversalConverterTests
+        - FileConverterTests
     profile:
       config: Release
     archive:

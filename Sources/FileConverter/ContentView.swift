@@ -22,7 +22,7 @@ struct ContentView: View {
             } isTargeted: { targeted in
                 isTargeted = targeted
             }
-            .navigationTitle("Universal Converter")
+            .navigationTitle("File Converter")
             .navigationSubtitle(subtitle)
             .toolbar { toolbar }
             .sheet(item: $merge) { session in MergeSheet(session: session) }

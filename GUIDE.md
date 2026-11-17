@@ -1,6 +1,6 @@
-# Universal Converter: user guide
+# File Converter: user guide
 
-Universal Converter is a macOS app. Drop a file on it, or choose one, and it offers the formats that file can be converted to. Results are saved next to the original file. Nothing is overwritten: a second conversion becomes `name (2).ext`.
+File Converter is a macOS app. Drop a file on it, or choose one, and it offers the formats that file can be converted to. Results are saved next to the original file. Nothing is overwritten: a second conversion becomes `name (2).ext`.
 
 The app reads a file's real contents, so a file with the wrong extension is still identified correctly. It shows a warning when the name and the contents disagree.
 
@@ -32,7 +32,7 @@ Code translation downloads a model of about 4.7 GB the first time. It works best
 You need Xcode installed (from the App Store). From the `FileConverter` folder in Terminal:
 
 ```bash
-./scripts/make-app.sh && open "build/Universal Converter.app"
+./scripts/make-app.sh && open "build/File Converter.app"
 ```
 
 The script generates the Xcode project with XcodeGen and builds it with Xcode. Building with Xcode is what registers the Shortcuts action.
@@ -54,7 +54,7 @@ The first run may ask you to confirm opening an app from an unidentified develop
 - **Warnings:** each row can show a note, a caution or a blocked message before you convert. A blocked file cannot be converted until the problem is fixed. For example, a missing tool, an empty file, or a folder the app cannot write to.
 - **Cancel:** click **Cancel** on a running conversion. The tool is stopped straight away.
 - **Settings** (⌘,): choose a folder for results, choose whether several PDF pages are saved as a folder or a ZIP file, change the Ollama model, turn the syntax-check repair on or off, and check the installed tools.
-- **Open With:** you can right-click a file in Finder and choose **Open With → Universal Converter**, or drop files on the Dock icon.
+- **Open With:** you can right-click a file in Finder and choose **Open With → File Converter**, or drop files on the Dock icon.
 - **Notifications:** when a file finishes while the app is in the background, you get a notification. Turn this off in Settings.
 - **Shortcuts and Siri:** the **Convert File** action takes a file and a format, and returns the converted file. It always returns one file, so several PDF pages come back as a ZIP file.
 

@@ -202,7 +202,7 @@ public partial class SettingsViewModel : ObservableObject
             var plan = PlanOverride is { } fake ? await fake(row.Feature) : await ToolRemoval.PlanAsync(row.Feature, Tools);
             if (plan.IsEmpty)
             {
-                AddMessage($"{row.Title} was not installed by winget, so Universal Converter cannot remove it. Remove it the way you installed it.");
+                AddMessage($"{row.Title} was not installed by winget, so File Converter cannot remove it. Remove it the way you installed it.");
                 return;
             }
             if (Confirm is null || !await Confirm($"Remove {row.Title}?", plan.Confirmation)) return;

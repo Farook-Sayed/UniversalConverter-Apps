@@ -232,7 +232,7 @@ public static class ImageProcessing
     /// <summary>Applies the adjustments in order (crop, size, background, style, flattening) and encodes the result.</summary>
     public static RenderedImage Render(string path, string targetId, ImageAdjustments adjustments, CancellationToken cancellation = default)
     {
-        var format = FormatFor(targetId) ?? throw ConversionException.Unsupported($"Universal Converter cannot write {targetId} pictures.");
+        var format = FormatFor(targetId) ?? throw ConversionException.Unsupported($"File Converter cannot write {targetId} pictures.");
         static ConversionException Failed(string step) => ConversionException.Unsupported($"The picture could not be {step}. Try a different format.");
         var notes = new List<string>();
 

@@ -42,7 +42,7 @@ internal static class Program
         var hint = ex.ToString().Contains("DllNotFoundException") || ex.ToString().Contains("0x8007007E") || ex.ToString().Contains("vcruntime", StringComparison.OrdinalIgnoreCase)
             ? "\n\nA library the program needs is missing. Install the Microsoft Visual C++ Redistributable by running this in a terminal:\nwinget install Microsoft.VCRedist.2015+.x64"
             : "";
-        MessageBoxW(IntPtr.Zero, $"Universal Converter could not start.\n\n{ex.GetType().Name}: {ex.Message}{hint}\n\nThe details were saved in:\n{path}", "Universal Converter", 0x10);
+        MessageBoxW(IntPtr.Zero, $"File Converter could not start.\n\n{ex.GetType().Name}: {ex.Message}{hint}\n\nThe details were saved in:\n{path}", "File Converter", 0x10);
     }
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]

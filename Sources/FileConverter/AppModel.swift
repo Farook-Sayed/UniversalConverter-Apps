@@ -333,7 +333,7 @@ final class AppModel {
             let everything = allTargetCount(for: file)
             let hidden = everything - items[index].targets.count
             if everything == 0 {
-                findings.append(Finding(severity: .info, message: "Universal Converter cannot convert this kind of file yet."))
+                findings.append(Finding(severity: .info, message: "File Converter cannot convert this kind of file yet."))
             } else if hidden > 0 {
                 let verb = hidden == 1 ? "needs an optional tool" : "need optional tools"
                 findings.append(Finding(severity: .info,
@@ -665,7 +665,7 @@ final class AppModel {
 
     /// Says why a group cannot be removed, when none of it was installed by Homebrew.
     func noteNotRemovable(_ state: FeatureState) {
-        addToolNotice("\(state.feature.title) was not installed by Homebrew, so Universal Converter cannot remove it. Remove it the way you installed it.")
+        addToolNotice("\(state.feature.title) was not installed by Homebrew, so File Converter cannot remove it. Remove it the way you installed it.")
     }
 
     /// Removes a feature after the user confirmed. It takes its turn with installs, because both change Homebrew's folders.
@@ -749,7 +749,7 @@ final class AppModel {
     private func notifyIfInBackground(title: String) {
         guard UserDefaults.standard.bool(forKey: SettingsKey.notifyWhenDone), !NSApp.isActive else { return }
         let content = UNMutableNotificationContent()
-        content.title = "Universal Converter"
+        content.title = "File Converter"
         content.body = title
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)

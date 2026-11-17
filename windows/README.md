@@ -1,12 +1,12 @@
-# Universal Converter for Windows
+# File Converter for Windows
 
-The Windows version of Universal Converter. It does the same job as the Mac app: drop in a file, the app looks inside it to see what it really is, and offers the formats it can become, in up to three steps. Everything runs on your PC. Nothing is uploaded.
+The Windows version of File Converter. It does the same job as the Mac app: drop in a file, the app looks inside it to see what it really is, and offers the formats it can become, in up to three steps. Everything runs on your PC. Nothing is uploaded.
 
 It is a C# app (.NET 10, Avalonia) in this folder, `windows/`. The macOS app lives in the rest of the repository.
 
 ## Get it
 
-Download `UniversalConverter.exe` and double-click it. It is one file, about 85 MB, and needs nothing else installed, not even .NET. It runs on Windows 10 (version 1903 or later) and Windows 11 on 64-bit PCs, including Arm PCs through Windows' built-in x64 support.
+Download `FileConverter.exe` and double-click it. It is one file, about 85 MB, and needs nothing else installed, not even .NET. It runs on Windows 10 (version 1903 or later) and Windows 11 on 64-bit PCs, including Arm PCs through Windows' built-in x64 support.
 
 **Windows may say "Windows protected your PC".** The file is not signed with a publisher certificate, which costs money each year, so SmartScreen does not know it. Choose **More info**, then **Run anyway**. Because of the same missing signature, some antivirus programs are cautious about new, unsigned programs.
 
@@ -62,7 +62,7 @@ An installed group has a **Remove…** button. It shows what will be removed, as
 - **No HEIC output.** HEIC can be opened and converted to other formats, but not written. Windows has no encoder that an app can use without the user installing one.
 - **Camera RAW** uses the full-size preview that nearly every camera stores inside the file, not a fresh development of the raw sensor data. It is a good picture, but not the same as developing the RAW in a photo editor.
 - **Background removal** uses a small model (U²-Net, built into the app) rather than the Mac's Vision framework. It works best with one clear subject.
-- **No Shortcuts action.** The Mac app adds one to Shortcuts. On Windows, files can be given on the command line (`UniversalConverter.exe a.png b.mp4`).
+- **No Shortcuts action.** The Mac app adds one to Shortcuts. On Windows, files can be given on the command line (`FileConverter.exe a.png b.mp4`).
 - **Text recognition** reads the languages in Windows Settings under Time and language. Add a language there to read it.
 
 ## Build it yourself
@@ -71,7 +71,7 @@ You need the .NET 10 SDK. The build works on Windows, macOS and Linux.
 
 ```sh
 cd windows
-./scripts/build-exe.sh          # makes dist/UniversalConverter.exe
+./scripts/build-exe.sh          # makes dist/FileConverter.exe
 dotnet test tests/UniversalConverter.Tests
 ```
 

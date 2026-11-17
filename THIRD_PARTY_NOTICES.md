@@ -1,6 +1,6 @@
 # Third-party notices
 
-Universal Converter is MIT licensed (see [LICENSE](LICENSE)). The macOS and Windows apps differ in what they contain, so this file has two parts.
+File Converter is MIT licensed (see [LICENSE](LICENSE)). The macOS and Windows apps differ in what they contain, so this file has two parts.
 
 Each component is licensed by its own authors. These tables are a guide, not legal advice. Check each project for its current licence before you redistribute anything that includes it.
 
@@ -27,7 +27,7 @@ If you ship a build of an app together with any of these programs, their licence
 
 ## Libraries included in the Windows app
 
-`UniversalConverter.exe` is one file that **contains** the libraries below, so their licence terms (mostly to keep the copyright notice and licence text) apply to the file. The macOS app is a separate program and does not contain them.
+`FileConverter.exe` is one file that **contains** the libraries below, so their licence terms (mostly to keep the copyright notice and licence text) apply to the file. The macOS app is a separate program and does not contain them.
 
 | Component | Used for | Licence |
 |---|---|---|
@@ -48,4 +48,4 @@ The Windows app also uses Windows' own text recognition (Windows.Media.Ocr). Tha
 
 ## Names and trademarks
 
-FFmpeg, ImageMagick, LibreOffice, Pandoc, Calibre, Poppler, Ghostscript, Assimp, 7-Zip, fontTools, Ollama, Qwen, Homebrew, winget, macOS, Windows, Microsoft and the other names in this file belong to their owners. They are used only to say which programs Universal Converter works with. Universal Converter is an independent project, and is not affiliated with, endorsed by, or sponsored by any of them.
+FFmpeg, ImageMagick, LibreOffice, Pandoc, Calibre, Poppler, Ghostscript, Assimp, 7-Zip, fontTools, Ollama, Qwen, Homebrew, winget, macOS, Windows, Microsoft and the other names in this file belong to their owners. They are used only to say which programs File Converter works with. File Converter is an independent project, and is not affiliated with, endorsed by, or sponsored by any of them.

@@ -12,7 +12,7 @@ mkdir -p "$OUT"
 
 for mode in 0 1; do
     FC_SNAPSHOT="$OUT" FC_SNAPSHOT_SAMPLES="$PWD/TestFiles" FC_SNAPSHOT_DARK="$mode" \
-        "build/Universal Converter.app/Contents/MacOS/Universal Converter" >/dev/null 2>&1 &
+        "build/File Converter.app/Contents/MacOS/File Converter" >/dev/null 2>&1 &
     pid=$!
     for _ in $(seq 1 40); do
         kill -0 "$pid" 2>/dev/null || break

@@ -790,7 +790,7 @@ public struct Converter: Sendable {
             try await execute("7-Zip", try requireSevenZip(),
                               ["x", "-y", "-o" + folder.path, archive.path], log: &log)
         } catch ConversionError.toolFailed(_, _, let message) where message.localizedCaseInsensitiveContains("password") {
-            throw ConversionError.unsupported("This archive is password-protected. Universal Converter cannot open password-protected archives yet.")
+            throw ConversionError.unsupported("This archive is password-protected. File Converter cannot open password-protected archives yet.")
         }
     }
 

@@ -56,7 +56,7 @@ public enum Preflight {
         }
         if !canWrite(toFolder: outputFolder) {
             result.append(Finding(severity: .blocking,
-                                  message: "Universal Converter cannot write to \(outputFolder.lastPathComponent). Choose another output folder in Settings."))
+                                  message: "File Converter cannot write to \(outputFolder.lastPathComponent). Choose another output folder in Settings."))
         }
         if let space = spaceFinding(fileSize: size, freeBytes: freeBytes(at: outputFolder)) {
             result.append(space)

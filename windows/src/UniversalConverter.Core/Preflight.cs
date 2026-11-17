@@ -31,7 +31,7 @@ public static class Preflight
             result.Add(new(Severity.Info, $"This takes {target.Steps.Count} steps, each with its own tool: {path}. Quality can drop a little at each step."));
         }
         if (!CanWrite(outputFolder))
-            result.Add(new(Severity.Blocking, $"Universal Converter cannot write to {Path.GetFileName(outputFolder.TrimEnd(Path.DirectorySeparatorChar))}. Choose another output folder in Settings."));
+            result.Add(new(Severity.Blocking, $"File Converter cannot write to {Path.GetFileName(outputFolder.TrimEnd(Path.DirectorySeparatorChar))}. Choose another output folder in Settings."));
         if (SpaceFinding(size, FreeBytes(outputFolder)) is { } space) result.Add(space);
         if (SizeFinding(size) is { } large) result.Add(large);
         if (LossyNote(file.Category, file.FormatId, target.Id) is { } lossy) result.Add(new(Severity.Caution, lossy));

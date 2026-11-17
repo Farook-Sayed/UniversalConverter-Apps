@@ -12,7 +12,7 @@ struct FileConverterApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("Universal Converter") {
+        WindowGroup("File Converter") {
             ContentView()
                 .environment(model)
                 .onAppear {
@@ -89,9 +89,9 @@ struct AppCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
-            Button("About Universal Converter") {
+            Button("About File Converter") {
                 NSApp.orderFrontStandardAboutPanel(options: [
-                    .applicationName: "Universal Converter",
+                    .applicationName: "File Converter",
                     .credits: AboutText.credits,
                 ])
             }
@@ -126,7 +126,7 @@ struct AppCommands: Commands {
         }
 
         CommandGroup(replacing: .help) {
-            Button("Universal Converter Guide") {
+            Button("File Converter Guide") {
                 if let guide = Bundle.main.url(forResource: "GUIDE", withExtension: "md") {
                     NSWorkspace.shared.open(guide)
                 }

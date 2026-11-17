@@ -6,7 +6,7 @@ using UniversalConverter.Core;
 namespace UniversalConverter.App;
 
 /// <summary>Checks that everything built into the program works on this PC: the picture library, the background model,
-/// PDF, archives, 3D models and text recognition. Run it with <c>UniversalConverter.exe --selftest</c>. The report is
+/// PDF, archives, 3D models and text recognition. Run it with <c>FileConverter.exe --selftest</c>. The report is
 /// printed and also saved as UniversalConverter-selftest.txt in the temp folder, because a Windows program has no console.</summary>
 public static class SelfTest
 {
@@ -22,7 +22,7 @@ public static class SelfTest
         }
         var work = Path.Combine(Path.GetTempPath(), "uc-selftest-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(work);
-        report.AppendLine($"Universal Converter self-test on {System.Runtime.InteropServices.RuntimeInformation.OSDescription} ({System.Runtime.InteropServices.RuntimeInformation.OSArchitecture})");
+        report.AppendLine($"File Converter self-test on {System.Runtime.InteropServices.RuntimeInformation.OSDescription} ({System.Runtime.InteropServices.RuntimeInformation.OSArchitecture})");
 
         var picture = Path.Combine(work, "subject.png");
         using (var image = new MagickImage(new MagickColor("#203040"), 512, 512))

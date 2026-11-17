@@ -6,7 +6,7 @@ namespace UniversalConverter.Core;
 public sealed class AppSettings
 {
     public string OutputFolder { get; set; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Universal Converter");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "File Converter");
     public string OllamaModel { get; set; } = "";
     public int RepairAttempts { get; set; } = 1;
     public PageOutput PageOutput { get; set; } = PageOutput.Folder;
@@ -14,7 +14,7 @@ public sealed class AppSettings
     /// <summary>Where the settings are kept. UC_SETTINGS_FILE moves them, which the tests use so they never touch the real settings.</summary>
     private static string FilePath => Environment.GetEnvironmentVariable("UC_SETTINGS_FILE") is { Length: > 0 } custom
         ? custom
-        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Universal Converter", "settings.json");
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "File Converter", "settings.json");
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 

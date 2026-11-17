@@ -1,6 +1,6 @@
 # Design notes
 
-How Universal Converter is designed, and why. These follow Apple's Human Interface Guidelines. Keep to them when adding to the app.
+How File Converter is designed, and why. These follow Apple's Human Interface Guidelines. Keep to them when adding to the app.
 
 ## Principles
 

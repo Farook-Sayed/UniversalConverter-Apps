@@ -6,7 +6,7 @@ import ConverterCore
 struct ConvertFileIntent: AppIntent {
     static let title: LocalizedStringResource = "Convert File"
     static let description = IntentDescription(
-        "Converts a file to another format with Universal Converter. The result is returned to the shortcut.")
+        "Converts a file to another format with File Converter. The result is returned to the shortcut.")
 
     @Parameter(title: "File")
     var file: IntentFile
@@ -40,7 +40,7 @@ struct ConvertFileIntent: AppIntent {
         let wanted = format.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ". "))
         guard let target = FormatCatalog.targets(for: detected)
             .first(where: { $0.id == wanted || $0.fileExtension == wanted }) else {
-            throw IntentFailure("Universal Converter cannot convert \(file.filename) to \(format).")
+            throw IntentFailure("File Converter cannot convert \(file.filename) to \(format).")
         }
 
         let output = work.appendingPathComponent("output", isDirectory: true)
@@ -59,7 +59,7 @@ struct ConvertFileIntent: AppIntent {
 }
 
 /// Makes Siri and Shortcuts find the action without any setup by the user.
-struct UniversalConverterShortcuts: AppShortcutsProvider {
+struct FileConverterShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: ConvertFileIntent(),
