@@ -154,6 +154,33 @@ public static class ImageProcessing
         try { image.GetExifProfile()?.SetValue(ExifTag.Orientation, (ushort)1); } catch { /* no details to fix */ }
     }
 
+    /// <summary>Where the JPEG that starts at <paramref name="start"/> ends, found by reading its blocks one by one. A
+    /// picture inside the EXIF block (the thumbnail) is skipped over with its block, so it does not end the outer picture
+    /// early. -1 when the data is not a whole JPEG.</summary>
+    public static int JpegEnd(byte[] data, int start)
+    {
+        int i = start + 2;
+        while (i + 3 < data.Length)
+        {
+            if (data[i] != 0xFF) return -1;
+            byte marker = data[i + 1];
+            if (marker == 0xFF) { i++; continue; }                       // padding before a marker
+            if (marker == 0xD9) return i + 2;                            // end of the picture
+            if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD8)) { i += 2; continue; } // markers without a length
+            int segment = (data[i + 2] << 8) | data[i + 3];
+            if (segment < 2) return -1;
+            i += 2 + segment;
+            if (marker != 0xDA) continue;
+            // After the scan header comes the picture data. It runs to the next marker that is not a stuffed FF00 or a restart.
+            while (i + 1 < data.Length)
+            {
+                if (data[i] == 0xFF && data[i + 1] != 0x00 && !(data[i + 1] >= 0xD0 && data[i + 1] <= 0xD7) && data[i + 1] != 0xFF) break;
+                i++;
+            }
+        }
+        return -1;
+    }
+
     /// <summary>The largest JPEG inside a camera RAW file. Nearly every RAW format keeps one as its preview.</summary>
     private static MagickImage LoadRawPreview(string path)
     {
@@ -162,12 +189,12 @@ public static class ImageProcessing
         for (int i = 0; i + 3 < data.Length; i++)
         {
             if (data[i] != 0xFF || data[i + 1] != 0xD8 || data[i + 2] != 0xFF) continue;
-            int end = i + 3;
-            // The image ends at the next FFD9 that is followed by another marker or the end of the file.
-            while (end + 1 < data.Length && !(data[end] == 0xFF && data[end + 1] == 0xD9)) end++;
-            int length = Math.Min(end + 2, data.Length) - i;
+            int end = JpegEnd(data, i);
+            if (end < 0) continue;
+            int length = end - i;
             if (length > best.length) best = (i, length);
-            i = end;
+            // A small picture inside this one (the thumbnail in the EXIF block) is not looked at again.
+            i = end - 1;
         }
         if (best.start < 0 || best.length < 20_000)
             throw ConversionException.Unsupported("This camera RAW file could not be read. Windows may need the camera's codec, or the camera is not supported yet.");
@@ -367,6 +394,9 @@ public static class BackgroundRemover
         small.Resize(new MagickGeometry(Side, Side) { IgnoreAspectRatio = true });
         // One byte per colour value. A picture held with 16 bits per value would give twice the bytes.
         small.Depth = 8;
+        // A grey or CMYK picture has fewer or more values per pixel, so it is made an ordinary colour picture first.
+        small.ColorSpace = ColorSpace.sRGB;
+        small.ColorType = ColorType.TrueColor;
         var rgb = small.ToByteArray(MagickFormat.Rgb);
         var input = new DenseTensor<float>([1, 3, Side, Side]);
         float[] mean = [0.485f, 0.456f, 0.406f], std = [0.229f, 0.224f, 0.225f];

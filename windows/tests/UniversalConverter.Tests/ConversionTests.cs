@@ -591,3 +591,47 @@ public class ToolConversionTests
         Assert.Equal(6, Directory.GetFiles(out_).Length);
     }
 }
+
+
+public class RawPreviewTests
+{
+    /// <summary>A JPEG whose EXIF block holds a small picture of its own, as camera RAW previews do.</summary>
+    [Fact]
+    public void ThePictureInsideTheExifBlockDoesNotEndTheOuterPictureEarly()
+    {
+        byte[] thumbnail = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x02, 0xFF, 0xD9];
+        var exif = new List<byte> { 0x45, 0x78, 0x69, 0x66, 0x00, 0x00 };
+        exif.AddRange(thumbnail);
+        var jpeg = new List<byte> { 0xFF, 0xD8, 0xFF, 0xE1, (byte)((exif.Count + 2) >> 8), (byte)((exif.Count + 2) & 0xFF) };
+        jpeg.AddRange(exif);
+        jpeg.AddRange([0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F, 0x00]); // scan header
+        jpeg.AddRange([0x11, 0x22, 0xFF, 0x00, 0x33, 0xFF, 0xD0, 0x44]);               // data, a stuffed FF and a restart marker
+        jpeg.AddRange([0xFF, 0xD9]);
+        // Padding in front and after, as in a RAW file.
+        var file = new byte[10].Concat(jpeg).Concat(new byte[10]).ToArray();
+        Assert.Equal(10 + jpeg.Count, ImageProcessing.JpegEnd(file, 10));
+    }
+
+    [Fact]
+    public void DataThatIsNotAWholeJpegGivesNoEnd() =>
+        Assert.Equal(-1, ImageProcessing.JpegEnd([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x01], 0));
+}
+
+public class ArchiveSafetyTests
+{
+    [Fact]
+    public void RemovingLinksNeverEntersALinkedFolder()
+    {
+        using var temp = new TempFolder();
+        var outside = Path.Combine(temp.Path, "outside"); Directory.CreateDirectory(outside);
+        var innerLink = Path.Combine(outside, "inner-link.txt");
+        var target = Path.Combine(temp.Path, "t.txt"); File.WriteAllText(target, "x");
+        try { File.CreateSymbolicLink(innerLink, target); }
+        catch { return; } // links need a privilege on some PCs, so there is nothing to check there
+        var work = Path.Combine(temp.Path, "work"); Directory.CreateDirectory(work);
+        try { Directory.CreateSymbolicLink(Path.Combine(work, "folder-link"), outside); }
+        catch { return; }
+        Assert.Equal(1, Archives.RemoveLinks(work));
+        Assert.True(File.Exists(innerLink) || new FileInfo(innerLink).LinkTarget is not null, "the link outside the folder was left alone");
+    }
+}

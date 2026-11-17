@@ -12,6 +12,8 @@ public struct RemovalPlan: Equatable, Sendable {
     public var typeScript = false
     /// Programs of this group that Homebrew did not install. The app leaves them alone.
     public var installedElsewhere: [String] = []
+    /// Programs of this group that another installed group still needs. They stay, so that group keeps working.
+    public var keptForOthers: [String] = []
 
     public init(formulae: [String] = [], casks: [String] = [], models: [String] = [], fontEnvironment: Bool = false,
                 typeScript: Bool = false, installedElsewhere: [String] = []) {
@@ -48,6 +50,9 @@ public struct RemovalPlan: Equatable, Sendable {
         if touchesGeneralTools {
             text += "\n\nNode.js, Go, Rust and Python are general programming tools, so other software on this Mac may need them."
         }
+        if !keptForOthers.isEmpty {
+            text += "\n\nNot removed, because another group you installed needs them: " + keptForOthers.joined(separator: ", ") + "."
+        }
         if !installedElsewhere.isEmpty {
             text += "\n\nNot removed, because Homebrew did not install them: " + installedElsewhere.joined(separator: ", ") + "."
         }
@@ -60,10 +65,11 @@ extension ToolInstaller {
     /// Works out what removing a feature would take away. `brewFormulae` and `brewCasks` are what Homebrew has installed.
     public static func removalPlan(for feature: ToolFeature, brewFormulae: Set<String>, brewCasks: Set<String>,
                                    downloadedModels: [String], fontEnvironmentExists: Bool,
-                                   typeScriptInstalled: Bool) -> RemovalPlan {
+                                   typeScriptInstalled: Bool, neededByOthers: Set<String> = []) -> RemovalPlan {
         var plan = RemovalPlan()
         for formula in feature.formulae {
-            if brewFormulae.contains(formula) { plan.formulae.append(formula) } else { plan.installedElsewhere.append(formula) }
+            if neededByOthers.contains(formula) { plan.keptForOthers.append(formula) }
+            else if brewFormulae.contains(formula) { plan.formulae.append(formula) } else { plan.installedElsewhere.append(formula) }
         }
         for cask in feature.casks {
             if brewCasks.contains(cask) { plan.casks.append(cask) } else { plan.installedElsewhere.append(cask) }
@@ -78,11 +84,13 @@ extension ToolInstaller {
     public static func removalPlan(for feature: ToolFeature, tools: ToolLocator) async -> RemovalPlan {
         let formulae = await brewNames(tools, ["list", "--formula", "-1"])
         let casks = await brewNames(tools, ["list", "--cask", "-1"])
+        // Fonts and Code checks both use Python, for example. Removing one must not break the other.
+        let neededByOthers = Set(ToolFeature.all.filter { $0.id != feature.id && $0.isInstalled(tools) }.flatMap(\.formulae))
         return removalPlan(
             for: feature, brewFormulae: formulae, brewCasks: casks,
             downloadedModels: CodeModels.catalog.filter(\.isInstalled).map(\.name),
             fontEnvironmentExists: FileManager.default.fileExists(atPath: ToolFeature.fontEnvironment.path),
-            typeScriptInstalled: tools.locate(["tsc"]) != nil)
+            typeScriptInstalled: tools.locate(["tsc"]) != nil, neededByOthers: neededByOthers)
     }
 
     private static func brewNames(_ tools: ToolLocator, _ arguments: [String]) async -> Set<String> {

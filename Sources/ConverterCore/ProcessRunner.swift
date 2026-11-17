@@ -64,6 +64,8 @@ public enum ProcessRunner {
         } catch {
             tail?.cancel()
             _ = await tail?.value
+            try? outHandle.close()
+            try? errHandle.close()
             throw error
         }
         tail?.cancel()
@@ -138,12 +140,18 @@ final class ProcessBox: @unchecked Sendable {
 
     init(_ process: Process) {
         self.process = process
+        ProcessRegistry.add(self)
     }
+
+    deinit { ProcessRegistry.remove(self) }
 
     var timedOut: Bool {
         lock.lock(); defer { lock.unlock() }
         return _timedOut
     }
+
+    /// Stops this process now, whichever thread asks.
+    func terminateNow() { terminateIfRunning() }
 
     func terminateIfRunning() {
         if process.isRunning { process.terminate() }
@@ -157,4 +165,33 @@ final class ProcessBox: @unchecked Sendable {
         lock.unlock()
         process.terminate()
     }
+}
+
+/// Every process that is running, so the app can stop them all at once when it quits.
+/// Cancelling a task stops its process a moment later, which is too late when the app is exiting.
+enum ProcessRegistry {
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var boxes: [ObjectIdentifier: Unmanaged<ProcessBox>] = [:]
+
+    static func add(_ box: ProcessBox) {
+        lock.lock(); defer { lock.unlock() }
+        boxes[ObjectIdentifier(box)] = Unmanaged.passUnretained(box)
+    }
+
+    static func remove(_ box: ProcessBox) {
+        lock.lock(); defer { lock.unlock() }
+        boxes[ObjectIdentifier(box)] = nil
+    }
+
+    static func terminateAll() {
+        lock.lock()
+        let running = boxes.values.map { $0.takeUnretainedValue() }
+        lock.unlock()
+        for box in running { box.terminateNow() }
+    }
+}
+
+extension ProcessRunner {
+    /// Stops every program this app started and that is still running. Called when the app quits.
+    public static func terminateAll() { ProcessRegistry.terminateAll() }
 }

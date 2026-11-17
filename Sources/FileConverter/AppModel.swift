@@ -228,7 +228,9 @@ final class AppModel {
         default: return "Installing \(installSteps.count) things at once…"
         }
     }
-    private var runningCount: Int { items.filter { $0.phase == .converting }.count }
+    /// Conversions whose task has not ended yet. A removed file still holds its place until its tool has stopped.
+    private var runningIDs: Set<UUID> = []
+    private var runningCount: Int { runningIDs.count }
 
     /// Whether a conversion tool is installed. The menus offer only conversions that can run now.
     /// Answers are remembered for the life of the closure, because one route search asks about each tool many times.
@@ -392,6 +394,7 @@ final class AppModel {
               let target = items[index].selectedTarget else { return }
         let file = items[index].effectiveFile
         items[index].phase = .converting
+        runningIDs.insert(id)
         let request = ConversionRequest(input: file, route: target,
                                         outputDirectory: outputDirectory(for: items[index].file.url),
                                         pdfCompression: items[index].compressionValue ?? .medium,
@@ -574,6 +577,8 @@ final class AppModel {
     func cancelAll() {
         waiting.removeAll()
         for task in tasks.values { task.cancel() }
+        // Cancelling stops each tool a moment later, which is too late when the app is quitting.
+        ProcessRunner.terminateAll()
     }
 
     func cancel(_ id: UUID) {
@@ -592,6 +597,7 @@ final class AppModel {
 
     private func finish(_ id: UUID, phase: Phase, log: [String], notes: [String] = []) {
         tasks[id] = nil
+        runningIDs.remove(id)
         // A place is free whether or not the file is still in the list. Without this, removing a file that was
         // converting would leave the files waiting behind it stuck.
         defer { startWaiting() }

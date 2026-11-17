@@ -561,7 +561,7 @@ public sealed partial class Converter
             case "7z":
                 var sevenZip = Tools.Locate("7zz", "7z") ?? throw ConversionException.ToolNotFound("7-Zip");
                 job.Log.Add("7-Zip: a -t7z out.7z " + string.Join(' ', items));
-                var result = await ProcessRunner.RunAsync(sevenZip, ["a", "-y", "-t7z", output, .. items!], workingDirectory: extracted, cancellation: job.Cancellation);
+                var result = await ProcessRunner.RunAsync(sevenZip, ["a", "-y", "-t7z", output, .. items.Select(n => ".\\" + n)], workingDirectory: extracted, cancellation: job.Cancellation);
                 if (result.ExitCode != 0) throw ConversionException.ToolFailed("7-Zip", result.ExitCode, FailureLines(result.StdErr + result.StdOut));
                 break;
             default:

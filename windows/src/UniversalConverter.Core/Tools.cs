@@ -52,6 +52,9 @@ public sealed class ToolLocator
         }
     }
 
+    /// <summary>Forgets the kept PATH. Called after winget installs or removes something, so the next lookup sees the change.</summary>
+    public static void InvalidateCache() { lock (CacheGate) { _cachedPath = null; } }
+
     private static readonly object CacheGate = new();
     private static string? _cachedPath;
     private static DateTime _cachedAt;
@@ -231,6 +234,7 @@ public static class ToolInstaller
                                             "--accept-package-agreements", "--accept-source-agreements"],
                                    "winget", log, cancellation, allowed: AlreadyDone,
                                    onOutput: line => { if (WingetProgress.Describe(line) is { } step) progress(step); });
+                    ToolLocator.InvalidateCache();
                 }, onWait: () => progress("Waiting for another install to finish…"), cancellation);
             }
         }

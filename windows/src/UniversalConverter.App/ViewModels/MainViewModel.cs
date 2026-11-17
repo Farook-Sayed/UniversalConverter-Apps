@@ -150,6 +150,8 @@ public partial class MainViewModel : ObservableObject
             DetectedFile? detected;
             try { detected = await Task.Run(() => _detector.Detect(path)); }
             catch { continue; }
+            // Another drop may have added the same file while this one was being read.
+            if (Items.Any(i => string.Equals(i.File.Path, path, StringComparison.OrdinalIgnoreCase))) continue;
             var item = new ItemViewModel(this, detected);
             Items.Add(item);
             if (item.Lock == PdfLock.Checking) _ = OpenPdfAsync(item);

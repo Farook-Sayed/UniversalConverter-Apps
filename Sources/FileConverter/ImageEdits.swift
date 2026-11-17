@@ -370,6 +370,7 @@ struct CropEditor: View {
     }
 
     private func move(by translation: CGSize, in shown: CGRect) {
+        guard shown.width > 0, shown.height > 0 else { return }
         let origin = start ?? rect
         start = origin
         let x = origin.minX + translation.width / shown.width
@@ -379,6 +380,7 @@ struct CropEditor: View {
     }
 
     private func resize(_ corner: Corner, by translation: CGSize, in shown: CGRect) {
+        guard shown.width > 0, shown.height > 0 else { return }
         let origin = start ?? rect
         start = origin
         let dx = translation.width / shown.width

@@ -93,6 +93,45 @@ final class RobustnessTests: XCTestCase {
 
     // MARK: Archives
 
+    /// An entry named "@list.txt" is a list-file for 7-Zip, and one named "-x" is a switch for tar and zip, when the names
+    /// are passed on the command line. They must be packed as ordinary files, and must not pull in other files.
+    func testEntryNamesThatLookLikeOptionsAreJustFiles() async throws {
+        let source = dir.appendingPathComponent("src", isDirectory: true)
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        let outside = dir.appendingPathComponent("outside-secret.txt")
+        try "secret-data".write(to: outside, atomically: true, encoding: .utf8)
+        try outside.path.write(to: source.appendingPathComponent("m.txt"), atomically: true, encoding: .utf8)
+        try "x".write(to: source.appendingPathComponent("@m.txt"), atomically: true, encoding: .utf8)
+        try "x".write(to: source.appendingPathComponent("-dash.txt"), atomically: true, encoding: .utf8)
+        let tar = dir.appendingPathComponent("odd.tar")
+        let made = try await ProcessRunner.run(URL(fileURLWithPath: "/usr/bin/tar"),
+                                               arguments: ["-cf", tar.path, "-C", source.path, "--", "./-dash.txt", "./@m.txt", "./m.txt"])
+        XCTAssertEqual(made.exitCode, 0)
+
+        let detected = try FileDetector().detect(url: tar)
+        let modes: [(String, (Engine) -> Bool)] = [("all tools", { _ in true }), ("macOS only", { $0 == .builtin })]
+        var ran = 0
+        defer { XCTAssertGreaterThan(ran, 0, "at least one way of making the ZIP should have run") }
+        for (name, available) in modes {
+            guard let route = FormatCatalog.targets(for: detected, available: available).first(where: { $0.id == "zip" }) else {
+                XCTFail("tar should offer ZIP (\(name))")
+                continue
+            }
+            let result: ConversionResult
+            do {
+                result = try await Converter().convert(ConversionRequest(
+                    input: detected, route: route, outputDirectory: dir.appendingPathComponent("out-\(name)")))
+            } catch ConversionError.toolNotFound {
+                continue
+            }
+            ran += 1
+            let listing = try await ProcessRunner.run(URL(fileURLWithPath: "/usr/bin/unzip"),
+                                                      arguments: ["-Z1", result.outputURL.path])
+            let names = Set(listing.stdout.split(separator: "\n").map(String.init))
+            XCTAssertEqual(names, ["-dash.txt", "@m.txt", "m.txt"], "all three are packed as plain files (\(name))")
+        }
+    }
+
     /// A tar file can hold a link to any file on this Mac. Repacking followed the link and put the file's
     /// contents into the new ZIP.
     func testSymbolicLinksInAnArchiveAreNotCopiedIntoTheResult() async throws {

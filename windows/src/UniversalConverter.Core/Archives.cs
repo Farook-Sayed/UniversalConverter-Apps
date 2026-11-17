@@ -20,7 +20,8 @@ public static class Archives
             cancellation.ThrowIfCancellationRequested();
             // An entry named ../x would write outside the folder, so a path that leaves it is refused.
             var destination = Path.GetFullPath(Path.Combine(folder, key.Replace('/', Path.DirectorySeparatorChar)));
-            if (!destination.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            bool isRoot = isDirectory && string.Equals(destination, Path.GetFullPath(folder), StringComparison.OrdinalIgnoreCase);
+            if (!isRoot && !destination.StartsWith(root, StringComparison.OrdinalIgnoreCase))
                 throw ConversionException.Unsupported("This archive holds a file with a path that leaves its folder, so it was not opened.");
             if (isDirectory) { Directory.CreateDirectory(destination); return; }
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
@@ -104,8 +105,18 @@ public static class Archives
     public static int RemoveLinks(string folder)
     {
         var links = new List<FileSystemInfo>();
-        foreach (var info in new DirectoryInfo(folder).EnumerateFileSystemInfos("*", new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = 0 }))
-            if (info.LinkTarget is not null || info.Attributes.HasFlag(FileAttributes.ReparsePoint)) links.Add(info);
+        // The folders are walked by hand and a link is never entered, so a link to a folder cannot lead the walk
+        // (and the deleting) to somewhere else on this PC.
+        var pending = new Stack<DirectoryInfo>();
+        pending.Push(new DirectoryInfo(folder));
+        while (pending.Count > 0)
+        {
+            foreach (var info in pending.Pop().EnumerateFileSystemInfos("*", new EnumerationOptions { AttributesToSkip = 0 }))
+            {
+                if (info.LinkTarget is not null || info.Attributes.HasFlag(FileAttributes.ReparsePoint)) links.Add(info);
+                else if (info is DirectoryInfo directory) pending.Push(directory);
+            }
+        }
         foreach (var link in links)
         {
             try { link.Delete(); } catch { /* it is gone or cannot be removed */ }

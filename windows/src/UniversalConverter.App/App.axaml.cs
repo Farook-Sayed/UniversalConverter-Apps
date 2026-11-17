@@ -18,7 +18,7 @@ public partial class App : Application
             desktop.MainWindow = new MainWindow { DataContext = model };
             var args = (desktop.Args ?? []).ToList();
             // --demo FOLDER and --snapshot FOLDER are developer options. Anything else is a file to add.
-            string? Option(string name) { int i = args.IndexOf(name); if (i < 0) return null; var v = i + 1 < args.Count ? args[i + 1] : null; args.RemoveRange(i, v is null ? 1 : 2); return v; }
+            string? Option(string name) { int i = args.IndexOf(name); if (i < 0) return null; var v = i + 1 < args.Count && !args[i + 1].StartsWith("--") ? args[i + 1] : null; args.RemoveRange(i, v is null ? 1 : 2); return v; }
             var demo = Option("--demo");
             var snapshot = Option("--snapshot");
             // --theme light or --theme dark shows the app in that look, for checking both. Normally it follows Windows.

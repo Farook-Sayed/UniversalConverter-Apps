@@ -287,7 +287,9 @@ public enum ImageProcessing {
         filter.setValue(CIImage(color: .clear).cropped(to: extent), forKey: kCIInputBackgroundImageKey)
         filter.setValue(CIImage(cvPixelBuffer: mask), forKey: kCIInputMaskImageKey)
         guard let output = filter.outputImage else { return nil }
-        let space = image.colorSpace ?? CGColorSpaceCreateDeviceRGB()
+        // Grey and CMYK colour spaces cannot hold RGBA output, so those pictures are drawn in sRGB.
+        var space = image.colorSpace ?? CGColorSpaceCreateDeviceRGB()
+        if space.model != .rgb { space = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB() }
         return CIContext().createCGImage(output, from: extent, format: .RGBA8, colorSpace: space)
     }
 

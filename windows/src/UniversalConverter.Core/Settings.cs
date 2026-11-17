@@ -85,5 +85,5 @@ public static class CodeModels
 
     public static bool IsInstalled(string name) => File.Exists(ManifestPath(name));
 
-    public static int PhysicalMemoryGb => (int)(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1_073_741_824L);
+    public static int PhysicalMemoryGb => (int)Math.Round(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1_073_741_824.0);
 }

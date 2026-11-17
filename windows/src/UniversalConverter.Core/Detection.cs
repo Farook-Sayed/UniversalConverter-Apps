@@ -137,7 +137,7 @@ internal static class Signatures
         if (Ascii(b, "%PDF")) return new("pdf", MediaCategory.Document, "application/pdf");
         if (At(b, [0x1A, 0x45, 0xDF, 0xA3]))
         {
-            var head = Encoding.UTF8.GetString(b, 0, Math.Min(64, b.Length));
+            var head = Encoding.UTF8.GetString(b, 0, Math.Min(512, b.Length));
             return head.Contains("webm") ? new("webm", MediaCategory.Video, "video/webm") : new("mkv", MediaCategory.Video, "video/x-matroska");
         }
         if (Ascii(b, "ID3") || At(b, [0xFF, 0xFB]) || At(b, [0xFF, 0xF3]) || At(b, [0xFF, 0xF2])) return new("mp3", MediaCategory.Audio, "audio/mpeg");

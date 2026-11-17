@@ -11,6 +11,8 @@ public sealed record RemovalPlan
     public bool TypeScript { get; init; }
     /// <summary>Packages of this group that winget does not list. The app leaves them alone.</summary>
     public IReadOnlyList<string> InstalledElsewhere { get; init; } = [];
+    /// <summary>Packages of this group that another installed group still needs. They stay, so that group keeps working.</summary>
+    public IReadOnlyList<string> KeptForOthers { get; init; } = [];
 
     public bool IsEmpty => Packages.Count == 0 && Models.Count == 0 && !FontEnvironment && !TypeScript;
 
@@ -42,6 +44,7 @@ public sealed record RemovalPlan
             var text = "This removes:\n" + string.Join("\n", Items.Select(i => "• " + i));
             text += "\n\nIt also removes them for any other program that uses them, including ones you installed yourself. You can install them again from here.";
             if (TouchesGeneralTools) text += "\n\nPython, Node.js, Go and Java are general programming tools, so other software on this PC may need them.";
+            if (KeptForOthers.Count > 0) text += "\n\nNot removed, because another group you installed needs them: " + string.Join(", ", KeptForOthers) + ".";
             if (InstalledElsewhere.Count > 0) text += "\n\nNot removed, because winget does not list them: " + string.Join(", ", InstalledElsewhere) + ".";
             return text;
         }
@@ -55,9 +58,10 @@ public static class ToolRemoval
 
     /// <summary>Works out what removing a feature would take away. <paramref name="installedPackages"/> is what winget lists.</summary>
     public static RemovalPlan Plan(ToolFeature feature, ISet<string> installedPackages, IEnumerable<string> downloadedModels,
-                                   bool fontEnvironmentExists, bool typeScriptInstalled) => new()
+                                   bool fontEnvironmentExists, bool typeScriptInstalled, ISet<string>? neededByOthers = null) => new()
     {
-        Packages = feature.Packages.Where(installedPackages.Contains).ToList(),
+        Packages = feature.Packages.Where(p => installedPackages.Contains(p) && neededByOthers?.Contains(p) != true).ToList(),
+        KeptForOthers = feature.Packages.Where(p => installedPackages.Contains(p) && neededByOthers?.Contains(p) == true).ToList(),
         InstalledElsewhere = feature.Packages.Where(p => !installedPackages.Contains(p)).ToList(),
         Models = feature.ExtraSteps.Contains(ToolFeature.Extra.CodeModel) ? downloadedModels.ToList() : [],
         FontEnvironment = feature.ExtraSteps.Contains(ToolFeature.Extra.FontEnvironment) && fontEnvironmentExists,
@@ -78,7 +82,9 @@ public static class ToolRemoval
             }
         }
         return Plan(feature, installed, CodeModels.Catalog.Where(m => m.IsInstalled).Select(m => m.Name),
-                    File.Exists(ToolFeature.FontEnvironmentPython), tools.Locate("tsc") is not null);
+                    File.Exists(ToolFeature.FontEnvironmentPython), tools.Locate("tsc") is not null,
+                    // Fonts and Code checks both use Python, for example. Removing one must not break the other.
+                    ToolFeature.All.Where(f => f.Id != feature.Id && f.IsInstalled(tools)).SelectMany(f => f.Packages).ToHashSet());
     }
 
     /// <summary>Removes what the plan lists. Models go first, because Ollama is needed to remove them. The winget steps take their
@@ -114,6 +120,7 @@ public static class ToolRemoval
                     progress($"Removing {package}…");
                     await RunAsync(winget, ["uninstall", "--id", package, "-e", "--silent", "--disable-interactivity", "--accept-source-agreements"],
                                    "winget", log, cancellation, allowed: AlreadyGone);
+                    ToolLocator.InvalidateCache();
                 }, onWait: () => progress("Waiting for another install to finish…"), cancellation);
             }
         }

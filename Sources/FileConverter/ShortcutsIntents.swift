@@ -52,7 +52,7 @@ struct ConvertFileIntent: AppIntent {
 
         // The file is copied out of the temporary folder before that folder is removed.
         let returned = FileManager.default.temporaryDirectory
-            .appendingPathComponent("fc-result-\(UUID().uuidString)-\(result.outputURL.lastPathComponent)")
+            .appendingPathComponent("fc-work-result-\(UUID().uuidString)-\(result.outputURL.lastPathComponent)")
         try FileManager.default.copyItem(at: result.outputURL, to: returned)
         return .result(value: IntentFile(fileURL: returned, filename: result.outputURL.lastPathComponent))
     }

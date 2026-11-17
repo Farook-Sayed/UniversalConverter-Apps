@@ -11,8 +11,12 @@ public static class Shell
         try
         {
             if (ToolLocator.IsWindows)
+            {
+                // A path that ends in a backslash would turn the closing quote into a literal quote.
+                if (path.Length > 3) path = path.TrimEnd('\\', '/');
                 // Explorer reads "/select," followed by the quoted path, so the argument is written out rather than quoted as a whole.
                 Process.Start(new ProcessStartInfo("explorer.exe") { Arguments = Directory.Exists(path) ? $"\"{path}\"" : $"/select,\"{path}\"", UseShellExecute = false });
+            }
             else if (OperatingSystem.IsMacOS())
                 Process.Start(new ProcessStartInfo("open") { ArgumentList = { "-R", path }, UseShellExecute = false });
         }

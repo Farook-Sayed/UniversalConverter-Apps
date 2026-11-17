@@ -59,11 +59,11 @@ extension Converter {
         }
         switch target.id {
         case "zip":
-            try await execute("zip", systemTool("zip"), ["-q", "-r", output.path] + items, cwd: extracted, log: &log)
+            try await execute("zip", systemTool("zip"), ["-q", "-r", output.path, "--"] + items.map { "./" + $0 }, cwd: extracted, log: &log)
         case "targz":
-            try await execute("tar", systemTool("tar"), ["-czf", output.path, "-C", extracted.path] + items, log: &log)
+            try await execute("tar", systemTool("tar"), ["-czf", output.path, "-C", extracted.path, "--"] + items.map { "./" + $0 }, log: &log)
         default:
-            try await execute("tar", systemTool("tar"), ["-cf", output.path, "-C", extracted.path] + items, log: &log)
+            try await execute("tar", systemTool("tar"), ["-cf", output.path, "-C", extracted.path, "--"] + items.map { "./" + $0 }, log: &log)
         }
     }
 }

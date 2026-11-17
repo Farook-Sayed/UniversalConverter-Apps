@@ -759,14 +759,14 @@ public struct Converter: Sendable {
         switch target.id {
         case "zip", "7z":
             try await execute("7-Zip", try requireSevenZip(),
-                              ["a", "-y", "-t\(target.id)", output.path] + items,
+                              ["a", "-y", "-t\(target.id)", output.path] + items.map { "./" + $0 },
                               cwd: extracted, log: &log)
         case "targz":
             try await execute("tar", try requireTar(),
-                              ["-czf", output.path, "-C", extracted.path] + items, log: &log)
+                              ["-czf", output.path, "-C", extracted.path, "--"] + items.map { "./" + $0 }, log: &log)
         case "tar":
             try await execute("tar", try requireTar(),
-                              ["-cf", output.path, "-C", extracted.path] + items, log: &log)
+                              ["-cf", output.path, "-C", extracted.path, "--"] + items.map { "./" + $0 }, log: &log)
         default:
             throw ConversionError.unsupported("Cannot create a \(target.id) archive.")
         }

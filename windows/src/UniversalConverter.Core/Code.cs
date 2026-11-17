@@ -370,7 +370,7 @@ public sealed class OllamaClient
         if (binary is null) return false;
         try
         {
-            var info = new ProcessStartInfo(binary, "serve") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+            var info = new ProcessStartInfo(binary, "serve") { UseShellExecute = false, CreateNoWindow = true };
             info.Environment["PATH"] = ToolLocator.SearchPath();
             Process.Start(info);
         }

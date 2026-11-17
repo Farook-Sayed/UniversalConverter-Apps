@@ -216,7 +216,7 @@ enum Signatures {
         if ascii("Kaydara FBX Binary") { return .init(formatID: "fbx", category: .model3d, mime: "model/fbx") }
         if ascii("%PDF") { return .init(formatID: "pdf", category: .document, mime: "application/pdf") }
         if at([0x1A, 0x45, 0xDF, 0xA3]) {
-            let head = String(decoding: b.prefix(64), as: UTF8.self)
+            let head = String(decoding: b.prefix(512), as: UTF8.self)
             return head.contains("webm")
                 ? .init(formatID: "webm", category: .video, mime: "video/webm")
                 : .init(formatID: "mkv", category: .video, mime: "video/x-matroska")
