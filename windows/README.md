@@ -6,7 +6,7 @@ It is a C# app (.NET 10, Avalonia) in this folder, `windows/`. The macOS app liv
 
 ## Get it
 
-Download `FileConverter.exe` and double-click it. It is one file, about 85 MB, and needs nothing else installed, not even .NET. It runs on Windows 10 (version 1903 or later) and Windows 11 on 64-bit PCs, including Arm PCs through Windows' built-in x64 support.
+There is no download yet, so first build `FileConverter.exe` from source (the build command, `./scripts/build-exe.sh`, is further down this page), then double-click it. It is one file, about 85 MB, and needs nothing else installed, not even .NET. It runs on Windows 10 (version 1903 or later) and Windows 11 on 64-bit PCs, including Arm PCs through Windows' built-in x64 support.
 
 **Windows may say "Windows protected your PC".** The file is not signed with a publisher certificate, which costs money each year, so SmartScreen does not know it. Choose **More info**, then **Run anyway**. Because of the same missing signature, some antivirus programs are cautious about new, unsigned programs.
 

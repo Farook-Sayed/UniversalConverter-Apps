@@ -10,7 +10,7 @@ It comes as two native apps from one codebase:
 |---|---|---|
 | Needs | A Mac with Apple silicon, macOS 14 or later | Windows 10 or 11, 64-bit |
 | Built with | Swift and SwiftUI | C# (.NET 10) and Avalonia |
-| Install | [Download the app](https://github.com/Farook-Sayed/UniversalConverter-Apps/releases/tag/v1.0), or build it (see below) | Download `FileConverter.exe`, one file, nothing else to install |
+| Install | [Download the app](https://github.com/Farook-Sayed/UniversalConverter-Apps/releases/tag/v1.0), or build it (see below) | Build it from source (no download yet), see [`windows/`](windows/README.md) |
 | Code | This folder, the Swift packages and `Sources/` | [`windows/`](windows/README.md) |
 | Guide | [GUIDE.md](GUIDE.md) | [windows/README.md](windows/README.md) |
 
@@ -140,7 +140,7 @@ The matrix converts each sample file to every format offered for it and checks e
 
 The Windows app is in [`windows/`](windows/README.md). It does the same job as the Mac app, and its guide covers everything in detail. In short:
 
-- **Get it:** download `FileConverter.exe` and run it. It is one file, about 85 MB, and needs nothing else installed. Windows 10 (1903 or later) and Windows 11, 64-bit.
+- **Get it:** there is no download yet, so build it from source (below). The result is `FileConverter.exe`, one file, about 85 MB, that needs nothing else installed. Windows 10 (1903 or later) and Windows 11, 64-bit.
 - **Works with nothing to install:** pictures, PDF pages, scanned text (with Windows' own recognition), archives (ZIP, 7z, RAR, tar, tar.gz), 3D models, picture adjustments and merging pictures and PDFs.
 - **Optional tools:** video, Office, Markdown, e-books, PDF compression, 7-Zip, fonts, code translation and code checks install from **Settings and tools → Tools** through winget, with a **Remove…** button for each one.
 - **Build it:** `cd windows && ./scripts/build-exe.sh` makes `dist/FileConverter.exe`. The .NET 10 SDK is needed; it builds on Windows, macOS and Linux.
