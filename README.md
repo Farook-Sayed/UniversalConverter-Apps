@@ -2,13 +2,15 @@
 
 File Converter converts files between formats on your own computer. Drop a file in, pick a format, and it does the rest. It reads what is *inside* a file to work out its type, so a file with the wrong name still converts.
 
+**[Download File Converter 1.0 for macOS](https://github.com/Farook-Sayed/UniversalConverter-Apps/releases/tag/v1.0)**: signed with a Developer ID and notarized by Apple. Unzip it and drag the app to Applications.
+
 It comes as two native apps from one codebase:
 
 | | macOS | Windows |
 |---|---|---|
 | Needs | A Mac with Apple silicon, macOS 14 or later | Windows 10 or 11, 64-bit |
 | Built with | Swift and SwiftUI | C# (.NET 10) and Avalonia |
-| Install | Build it with `scripts/make-app.sh` (see below) | Download `FileConverter.exe`, one file, nothing else to install |
+| Install | [Download the app](https://github.com/Farook-Sayed/UniversalConverter-Apps/releases/tag/v1.0), or build it (see below) | Download `FileConverter.exe`, one file, nothing else to install |
 | Code | This folder, the Swift packages and `Sources/` | [`windows/`](windows/README.md) |
 | Guide | [GUIDE.md](GUIDE.md) | [windows/README.md](windows/README.md) |
 
@@ -82,12 +84,12 @@ file  →  detect by content  →  plan a route  →  run each step  →  result
 
 - A Mac with Apple silicon, running macOS 14 or later. Built and tested on macOS 27.
 - [Homebrew](https://brew.sh), to install the optional tools.
-- Xcode, to build the app.
+- Xcode, only if you build the app yourself.
 - About 6 GB of disk space, mostly for LibreOffice and the code model. 16 GB of memory is comfortable.
 
 ### Get started
 
-1. **Build and open the app** (see below).
+1. **[Download the app](https://github.com/Farook-Sayed/UniversalConverter-Apps/releases/tag/v1.0)**, unzip it and drag it to Applications (or build it, see below).
 2. **Open the app.** Pictures, Word and text documents, audio (WAV, M4A) and archives (ZIP, TAR) work straight away. They use tools that come with macOS, so there is nothing to install.
 3. **For more formats, open Settings → Tools** and click **Install** next to what you need, or **Install everything**. The app runs Homebrew for you and shows progress in the status bar.
 
@@ -131,7 +133,7 @@ The matrix converts each sample file to every format offered for it and checks e
 - Text recognition works best on printed text. Handwriting and unusual fonts are read less well, and a table is read column by column.
 - Password-protected PDFs: a PDF that only has restrictions (no printing or copying) opens at once. One with a password asks for it, and a password that fits several files is typed once. The password must be known: the app never guesses one. Opened PDFs are converted from a copy without protection, and **Save Copy Without Password** keeps that copy. The copy is rebuilt page by page, so the text, pictures and drawings stay, but bookmarks, links inside the document and form fields do not.
 - A progress percentage is shown for videos, audio, scanned PDFs, translated code, custom PDF sizes, merges and conversions in several steps. Other conversions show a spinner.
-- The app is not yet signed with a Developer ID or notarized, so macOS and some security software may warn about it.
+- The downloaded app is signed and notarized, but some security software may still warn about it. An app you build yourself is not notarized.
 - Only tested on Apple silicon.
 
 ## Windows app
